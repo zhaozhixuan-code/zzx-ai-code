@@ -8,64 +8,51 @@ import com.zzx.zzxaicode.model.po.User;
 import com.zzx.zzxaicode.service.UserService;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
-import lombok.extern.slf4j.Slf4j;
-import org.aspectj.lang.JoinPoint;
+import org.aspectj.lang.ProceedingJoinPoint;
+import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
-import org.aspectj.lang.annotation.Before;
-import org.aspectj.lang.annotation.Pointcut;
-import org.aspectj.lang.reflect.MethodSignature;
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
-
-/**
- * 鉴权拦截器
- */
 @Aspect
 @Component
-@Slf4j
 public class AuthInterceptor {
 
     @Resource
     private UserService userService;
 
     /**
-     * 切点
+     * 执行拦截
+     *
+     * @param joinPoint 切入点
+     * @param authCheck 权限校验注解
      */
-    @Pointcut("execution(* com.zzx.zzxaicode.controller.*.*(..)) &&  @annotation(com.zzx.zzxaicode.annotation.AuthCheck)")
-    public void pointCut() {
-    }
-
-    /**
-     * 前置通知
-     */
-    @Before("pointCut()")
-    public void doInterceptor(JoinPoint joinPoint) {
-
+    @Around("@annotation(authCheck)")
+    public Object doInterceptor(ProceedingJoinPoint joinPoint, AuthCheck authCheck) throws Throwable {
+        String mustRole = authCheck.mustRole();
         RequestAttributes requestAttributes = RequestContextHolder.currentRequestAttributes();
         HttpServletRequest request = ((ServletRequestAttributes) requestAttributes).getRequest();
         // 当前登录用户
-        User user = userService.getLoginUser(request);
-        // 获取用户的权限
-        UserRoleEnum userRoleEnum = UserRoleEnum.getEnumByValue(user.getUserRole());
-        // 利用反射获取方法上的访问权限
-        MethodSignature signature = (MethodSignature) joinPoint.getSignature();
-        UserRoleEnum mustRole = signature.getMethod().getAnnotation(AuthCheck.class).value();
-        // 如果访问权限为用户，表示都可以访问，直接放行
-        if (mustRole == UserRoleEnum.USER || mustRole == null) {
-            return;
+        User loginUser = userService.getLoginUser(request);
+        UserRoleEnum mustRoleEnum = UserRoleEnum.getEnumByValue(mustRole);
+        // 不需要权限，放行
+        if (mustRoleEnum == null) {
+            return joinPoint.proceed();
         }
-
-        // 拒绝访问情况
-        // 用户权限为null
+        // 以下为：必须有该权限才通过
+        // 获取当前用户具有的权限
+        UserRoleEnum userRoleEnum = UserRoleEnum.getEnumByValue(loginUser.getUserRole());
+        // 没有权限，拒绝
         if (userRoleEnum == null) {
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
         }
-        // 如果要求为管理员权限，但是用户没有权限，则拒绝
-        if (userRoleEnum == UserRoleEnum.USER && mustRole == UserRoleEnum.ADMIN) {
+        // 要求必须有管理员权限，但用户没有管理员权限，拒绝
+        if (UserRoleEnum.ADMIN.equals(mustRoleEnum) && !UserRoleEnum.ADMIN.equals(userRoleEnum)) {
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
         }
+        // 通过权限校验，放行
+        return joinPoint.proceed();
     }
 }

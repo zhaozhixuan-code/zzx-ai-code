@@ -1,7 +1,6 @@
 package com.zzx.zzxaicode.annotation;
 
 
-
 import com.zzx.zzxaicode.model.enums.UserRoleEnum;
 
 import java.lang.annotation.ElementType;
@@ -15,5 +14,9 @@ import java.lang.annotation.Target;
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)
 public @interface AuthCheck {
-    UserRoleEnum value() default UserRoleEnum.USER;
+
+    /**
+     * 必须有某个角色
+     */
+    String mustRole() default "";
 }

@@ -1,73 +1,97 @@
 package com.zzx.zzxaicode.model.po;
 
-import com.baomidou.mybatisplus.annotation.IdType;
-import com.baomidou.mybatisplus.annotation.TableId;
-import com.baomidou.mybatisplus.annotation.TableLogic;
-import com.baomidou.mybatisplus.annotation.TableName;
-import java.util.Date;
+import com.mybatisflex.annotation.Column;
+import com.mybatisflex.annotation.Id;
+import com.mybatisflex.annotation.KeyType;
+import com.mybatisflex.annotation.Table;
+import java.io.Serializable;
+import java.time.LocalDateTime;
+
+import java.io.Serial;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 /**
- * 用户
- * @TableName user
+ * 用户 实体类。
+ *
+ * @author <a href="https://github.com/zhaozhixuan-code/zzx-ai-code">赵志轩</a>
  */
-@TableName(value ="user")
 @Data
-public class User {
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@Table("user")
+public class User implements Serializable {
+
+    @Serial
+    private static final long serialVersionUID = 1L;
+
     /**
      * id
      */
-    @TableId(type = IdType.ASSIGN_ID)
+    @Id(keyType = KeyType.Auto)
     private Long id;
 
     /**
      * 账号
      */
+    @Column("userAccount")
     private String userAccount;
 
     /**
      * 密码
      */
+    @Column("userPassword")
     private String userPassword;
 
     /**
      * 用户昵称
      */
+    @Column("userName")
     private String userName;
 
     /**
      * 用户头像
      */
+    @Column("userAvatar")
     private String userAvatar;
 
     /**
      * 用户简介
      */
+    @Column("userProfile")
     private String userProfile;
 
     /**
      * 用户角色：user/admin
      */
+    @Column("userRole")
     private String userRole;
 
     /**
      * 编辑时间
      */
-    private Date editTime;
+    @Column("editTime")
+    private LocalDateTime editTime;
 
     /**
      * 创建时间
      */
-    private Date createTime;
+    @Column("createTime")
+    private LocalDateTime createTime;
 
     /**
      * 更新时间
      */
-    private Date updateTime;
+    @Column("updateTime")
+    private LocalDateTime updateTime;
 
     /**
      * 是否删除
      */
-    @TableLogic
+    @Column(value = "isDelete", isLogicDelete = true)
     private Integer isDelete;
 }

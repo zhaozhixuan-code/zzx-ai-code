@@ -1,8 +1,8 @@
 package com.zzx.zzxaicode.service;
 
-import com.baomidou.mybatisplus.core.conditions.Wrapper;
-import com.baomidou.mybatisplus.extension.service.IService;
-import com.zzx.zzxaicode.model.dto.user.UserAddRequest;
+
+import com.mybatisflex.core.query.QueryWrapper;
+import com.mybatisflex.core.service.IService;
 import com.zzx.zzxaicode.model.dto.user.UserQueryRequest;
 import com.zzx.zzxaicode.model.po.User;
 import com.zzx.zzxaicode.model.vo.LoginUserVO;
@@ -12,31 +12,32 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 
 /**
- * @author 28299
- * @description 针对表【user(用户)】的数据库操作Service
- * @createDate 2025-11-02 20:39:08
+ * 用户 服务层。
+ *
+ * @author <a href="https://github.com/zhaozhixuan-code/zzx-ai-code">赵志轩</a>
  */
 public interface UserService extends IService<User> {
-
 
     /**
      * 用户注册
      *
      * @param userAccount   用户账户
      * @param userPassword  用户密码
-     * @param checkPassword 确认密码
+     * @param checkPassword 校验密码
      * @return 新用户 id
      */
+
     long userRegister(String userAccount, String userPassword, String checkPassword);
 
 
+    String getEncryptPassword(String userPassword);
+
     /**
-     * 获取加密后的密码
+     * 获取脱敏的已登录用户信息
      *
-     * @param userPassword 用户密码
-     * @return 加密后的密码
+     * @return
      */
-    String getEncryptionPassword(String userPassword);
+    LoginUserVO getLoginUserVO(User user);
 
     /**
      * 用户登录
@@ -48,16 +49,6 @@ public interface UserService extends IService<User> {
      */
     LoginUserVO userLogin(String userAccount, String userPassword, HttpServletRequest request);
 
-
-    /**
-     * 获取当前登录用户
-     *
-     * @param user
-     * @return
-     */
-    LoginUserVO getLoginUserVO(User user);
-
-
     /**
      * 获取当前登录用户
      *
@@ -65,7 +56,6 @@ public interface UserService extends IService<User> {
      * @return
      */
     User getLoginUser(HttpServletRequest request);
-
 
     /**
      * 用户注销
@@ -75,13 +65,9 @@ public interface UserService extends IService<User> {
      */
     boolean userLogout(HttpServletRequest request);
 
-    Long addUser(UserAddRequest userAddRequest);
-
-    Wrapper<User> getQueryWrapper(UserQueryRequest userQueryRequest);
-
     UserVO getUserVO(User user);
 
     List<UserVO> getUserVOList(List<User> userList);
 
-    boolean isAdmin(User user);
+    QueryWrapper getQueryWrapper(UserQueryRequest userQueryRequest);
 }

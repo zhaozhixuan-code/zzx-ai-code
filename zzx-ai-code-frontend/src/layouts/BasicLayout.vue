@@ -1,56 +1,32 @@
 <template>
-  <div id="basicLayout">
-    <!--使用组件-->
-    <a-layout style="min-height: 100vh">
-      <!--头部-->
-      <a-layout-header class="header">
-        <GlobalHeader />
-      </a-layout-header>
+  <a-layout class="basic-layout">
+    <!-- 顶部导航栏 -->
+    <GlobalHeader />
 
-      <!-- 主体 -->
-      <a-layout>
-        <!--内容-->
-        <a-layout-content class="content">
-          <router-view />
-        </a-layout-content>
-      </a-layout>
+    <!-- 主要内容区域 -->
+    <a-layout-content class="main-content">
+      <router-view />
+    </a-layout-content>
 
-      <!-- 页脚 -->
-      <a-layout-footer class="footer">AI 无代码应用生成平台</a-layout-footer>
-    </a-layout>
-  </div>
+    <!-- 底部版权信息 -->
+    <GlobalFooter />
+  </a-layout>
 </template>
 
 <script setup lang="ts">
 import GlobalHeader from '@/components/GlobalHeader.vue'
+import GlobalFooter from '@/components/GlobalFooter.vue'
 </script>
 
 <style scoped>
-#basicLayout .header {
-  padding-inline: 20px;
-  margin-bottom: 1px;
-  color: unset;
+.basic-layout {
+  background: none;
+}
+
+.main-content {
+  max-width: 1200px;
+  padding: 24px;
   background: white;
-}
-
-#basicLayout :deep(.ant-menu-root) {
-  border-bottom: none !important;
-  border-inline-end: none !important;
-}
-
-#basicLayout .content {
-  background: linear-gradient(to right, #fefefe, #fff);
-  margin-bottom: 28px;
-  padding: 28px;
-}
-
-#basicLayout .footer {
-  background-color: #efefef;
-  padding: 16px;
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  text-align: center;
+  margin: 16px auto 56px;
 }
 </style>

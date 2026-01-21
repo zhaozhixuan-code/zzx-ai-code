@@ -9,7 +9,7 @@
         <a-input v-model:value="searchParams.userName" placeholder="输入用户名" allow-clear />
       </a-form-item>
       <a-form-item>
-        <a-button type="primary" html-type="submit" >搜索</a-button>
+        <a-button type="primary" html-type="submit">搜索</a-button>
       </a-form-item>
     </a-form>
     <div style="margin-bottom: 16px" />
@@ -52,19 +52,19 @@ import { message } from 'ant-design-vue'
 import dayjs from 'dayjs'
 import { deleteUser, listUserVoByPage } from '@/api/userController'
 
-// 表格列定义
+// ==================== 表格列定义 ====================
 const columns = [
   {
     title: 'id',
-    dataIndex: 'id',
+    dataIndex: 'id'
   },
   {
     title: '账号',
-    dataIndex: 'userAccount',
+    dataIndex: 'userAccount'
   },
   {
     title: '用户名',
-    dataIndex: 'userName',
+    dataIndex: 'userName'
   },
   // {
   //   title: '头像',
@@ -72,88 +72,86 @@ const columns = [
   // },
   {
     title: '简介',
-    dataIndex: 'userProfile',
+    dataIndex: 'userProfile'
   },
   {
     title: '用户角色',
-    dataIndex: 'userRole',
+    dataIndex: 'userRole'
   },
   {
     title: '创建时间',
-    dataIndex: 'createTime',
+    dataIndex: 'createTime'
   },
   {
     title: '操作',
-    key: 'action',
-  },
+    key: 'action'
+  }
 ]
 
-// 数据定义
+// ==================== 响应式数据 ====================
 const dataList = ref<API.UserVO[]>([])
-const total = ref<number>(0)
-
-// 搜索条件
+const total = ref(0)
 const searchParams = reactive<API.UserQueryRequest>({
-  current: 1,
-  pageSize: 10,
+  pageNum: 1,
+  pageSize: 10
 })
 
-// 分页参数
+// ==================== 计算属性 ====================
 const pagination = computed(() => {
   return {
-    current: searchParams.current ?? 1,
+    current: searchParams.pageNum ?? 1,
     pageSize: searchParams.pageSize ?? 10,
     total: total.value,
     showSizeChanger: true,
-    showTotal: (total) => `共 ${total} 条数据`,
+    showTotal: (total: number) => `共 ${total} 条`
   }
 })
 
-// 数据获取方法
+// ==================== 业务函数 ====================
+// 获取数据
 const fetchData = async () => {
   const res = await listUserVoByPage({
-    ...searchParams,
+    ...searchParams
   })
   if (res.data.data) {
     dataList.value = res.data.data.records ?? []
-    total.value = res.data.data.total ?? 0
+    total.value = res.data.data.totalRow ?? 0
   } else {
-    message.error('获取数据失败')
+    message.error('获取数据失败，' + res.data.message)
   }
 }
 
 // 搜索处理
 const doSearch = () => {
   // 重置页码
-  searchParams.current = 1
+  searchParams.pageNum = 1
   fetchData()
 }
 
 // 表格变化处理
-const doTableChange = (pagination) => {
-  searchParams.current = pagination.current
-  searchParams.pageSize = pagination.pageSize
+const doTableChange = (page: any) => {
+  searchParams.pageNum = page.current
+  searchParams.pageSize = page.pageSize
   fetchData()
 }
 
-// 删除处理
-const doDelete = async (id: string) => {
+// 删除数据
+const doDelete = async (id: number) => {
   if (!id) {
     return
   }
-  const res = await deleteUser({
-    id
-  })
+  const res = await deleteUser({ id })
   if (res.data.code === 0) {
     message.success('删除成功')
-    // 重新获取数据
+    // 刷新数据
     fetchData()
   } else {
     message.error('删除失败')
   }
 }
 
-// 页面加载时获取数据
+// ==================== 生命周期 ====================
+// 页面加载时请求一次
 onMounted(() => {
   fetchData()
 })

@@ -33,6 +33,14 @@ import static com.zzx.zzxaicode.constants.UserConstants.USER_LOGIN_STATE;
 @Service
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService {
 
+
+    /**
+     * 用户注册
+     * @param userAccount   用户账户
+     * @param userPassword  用户密码
+     * @param checkPassword 校验密码
+     * @return
+     */
     @Override
     public long userRegister(String userAccount, String userPassword, String checkPassword) {
         // 1. 校验
@@ -70,6 +78,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         return user.getId();
     }
 
+    /**
+     * 获取加密密码
+     *
+     * @param userPassword
+     * @return
+     */
     @Override
     public String getEncryptPassword(String userPassword) {
         // 盐值，混淆密码
@@ -172,6 +186,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         return true;
     }
 
+    /**
+     * 获取脱敏的已登录用户信息
+     *
+     * @return
+     */
     @Override
     public UserVO getUserVO(User user) {
         if (user == null) {
@@ -182,6 +201,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         return userVO;
     }
 
+    /**
+     * 获取脱敏的用户列表
+     *
+     * @param userList
+     * @return
+     */
     @Override
     public List<UserVO> getUserVOList(List<User> userList) {
         if (CollUtil.isEmpty(userList)) {
@@ -190,6 +215,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         return userList.stream().map(this::getUserVO).collect(Collectors.toList());
     }
 
+    /**
+     * 获取查询条件
+     *
+     * @param userQueryRequest
+     * @return
+     */
     @Override
     public QueryWrapper getQueryWrapper(UserQueryRequest userQueryRequest) {
         if (userQueryRequest == null) {

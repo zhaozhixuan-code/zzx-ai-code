@@ -1,33 +1,33 @@
 <template>
-  <div class="globalHeader">
+  <a-layout-header class="header">
     <a-row :wrap="false">
-      <!--左边图标-->
+      <!-- 左侧：Logo和标题 -->
       <a-col flex="200px">
         <RouterLink to="/">
-          <div class="title-bar">
-            <img class="logo" src="../assets/logo.png" alt="logo" />
-            <div class="title">AI 无代码生成应用平台</div>
+          <div class="header-left">
+            <img class="logo" src="@/assets/logo.png" alt="Logo" />
+            <h1 class="site-title">应用生成</h1>
           </div>
         </RouterLink>
       </a-col>
-      <!-- 菜单 -->
+      <!-- 中间：导航菜单 -->
       <a-col flex="auto">
         <a-menu
-          v-model:selectedKeys="current"
+          v-model:selectedKeys="selectedKeys"
           mode="horizontal"
-          :items="items"
-          @click="doMenuClick"
+          :items="menuItems"
+          @click="handleMenuClick"
         />
       </a-col>
-
-      <a-col flex="120px">
+      <!-- 右侧：用户操作区域 -->
+      <a-col>
         <div class="user-login-status">
           <div v-if="loginUserStore.loginUser.id">
             <a-dropdown>
-              <ASpace>
+              <a-space>
                 <a-avatar :src="loginUserStore.loginUser.userAvatar" />
                 {{ loginUserStore.loginUser.userName ?? '无名' }}
-              </ASpace>
+              </a-space>
               <template #overlay>
                 <a-menu>
                   <a-menu-item @click="doLogout">
@@ -38,47 +38,64 @@
               </template>
             </a-dropdown>
           </div>
-
           <div v-else>
             <a-button type="primary" href="/user/login">登录</a-button>
           </div>
         </div>
       </a-col>
     </a-row>
-  </div>
+  </a-layout-header>
 </template>
-<script lang="ts" setup>
-import { computed, h, ref } from 'vue'
-import { HomeOutlined, LogoutOutlined, UserOutlined, EditOutlined } from '@ant-design/icons-vue'
-import { MenuProps, message } from 'ant-design-vue'
 
+<script setup lang="ts">
+// ==================== 导入语句 ====================
+// Vue 相关
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { healthCheck } from '@/api/healthController'
-import { loginUser } from '@/stores/loginUser.ts'
-import { userLogout } from '@/api/userController'
 
-const loginUserStore = loginUser()
-loginUserStore.fetchLoginUser()
+// UI 组件
+import { type MenuProps, message } from 'ant-design-vue'
 
-// 菜单列表
+// 图标
+import { LogoutOutlined, HomeOutlined } from '@ant-design/icons-vue'
+
+// Store
+import { useLoginUserStore } from '@/stores/loginUser.ts'
+
+// API
+import { userLogout } from '@/api/userController.ts'
+
+// ==================== 响应式数据 ====================
+// 路由器实例
+const router = useRouter()
+
+// Store 实例
+const loginUserStore = useLoginUserStore()
+
+// 当前选中菜单
+const selectedKeys = ref<string[]>(['/'])
+
+// ==================== 菜单配置 ====================
+// 原始菜单配置项
 const originItems = [
   {
     key: '/',
-    icon: () => h(HomeOutlined),
     label: '主页',
-    title: '主页',
+    title: '主页'
   },
   {
     key: '/admin/userManage',
     label: '用户管理',
-    title: '用户管理',
-  },
+    title: '用户管理'
+  }
 ]
 
-// 过滤菜单项
+// ==================== 工具函数 ====================
+// 过滤菜单项（根据用户权限）
 const filterMenus = (menus = [] as MenuProps['items']) => {
   return menus?.filter((menu) => {
-    if (menu.key.startsWith('/admin')) {
+    const menuKey = menu?.key as string
+    if (menuKey?.startsWith('/admin')) {
       const loginUser = loginUserStore.loginUser
       if (!loginUser || loginUser.userRole !== 'admin') {
         return false
@@ -88,35 +105,27 @@ const filterMenus = (menus = [] as MenuProps['items']) => {
   })
 }
 
+// ==================== 计算属性 ====================
 // 展示在菜单的路由数组
-const items = computed<MenuProps['items']>(() => filterMenus(originItems))
+const menuItems = computed<MenuProps['items']>(() => filterMenus(originItems))
 
-const current = ref<string[]>(['home'])
-const router = useRouter()
-
-// 路由跳转事件
-const doMenuClick = ({ key }: { key: string }) => {
-  router.push({
-    path: key,
-  })
+// ==================== 事件处理 ====================
+// 处理菜单点击
+const handleMenuClick: MenuProps['onClick'] = (e) => {
+  const key = e.key as string
+  selectedKeys.value = [key]
+  // 跳转到对应页面
+  if (key.startsWith('/')) {
+    router.push(key)
+  }
 }
-
-// 监听路由变化，更新当前选中菜单
-router.afterEach((to, from, next) => {
-  current.value = [to.path]
-})
-
-healthCheck().then((res) => {
-  console.log(res)
-})
 
 // 用户注销
 const doLogout = async () => {
   const res = await userLogout()
-  console.log(res)
   if (res.data.code === 0) {
     loginUserStore.setLoginUser({
-      userName: '未登录',
+      userName: '未登录'
     })
     message.success('退出登录成功')
     await router.push('/user/login')
@@ -124,22 +133,38 @@ const doLogout = async () => {
     message.error('退出登录失败，' + res.data.message)
   }
 }
+
+// ==================== 生命周期 ====================
+// 监听路由变化，更新当前选中菜单
+router.afterEach((to, from, next) => {
+  selectedKeys.value = [to.path]
+})
 </script>
 
 <style scoped>
-.title-bar {
+.header {
+  background: #fff;
+  padding: 0 24px;
+}
+
+.header-left {
   display: flex;
   align-items: center;
-  margin-left: 16px;
+  gap: 12px;
 }
 
-.title-bar .title {
-  color: #000000;
-  font-size: 18px;
-  margin-left: 16px;
-}
-
-.title-bar .logo {
+.logo {
   height: 48px;
+  width: 48px;
+}
+
+.site-title {
+  margin: 0;
+  font-size: 18px;
+  color: #1890ff;
+}
+
+.ant-menu-horizontal {
+  border-bottom: none !important;
 }
 </style>

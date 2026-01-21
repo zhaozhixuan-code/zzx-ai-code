@@ -39,6 +39,10 @@ declare namespace API {
     id?: number
   }
 
+  type getInfoParams = {
+    id: number
+  }
+
   type getUserByIdParams = {
     id: number
   }
@@ -59,23 +63,30 @@ declare namespace API {
     updateTime?: string
   }
 
-  type OrderItem = {
-    column?: string
-    asc?: boolean
+  type pageParams = {
+    page: PageUser
+  }
+
+  type PageUser = {
+    records?: User[]
+    pageNumber?: number
+    pageSize?: number
+    totalPage?: number
+    totalRow?: number
+    optimizeCountQuery?: boolean
   }
 
   type PageUserVO = {
     records?: UserVO[]
-    total?: number
-    size?: number
-    current?: number
-    orders?: OrderItem[]
-    optimizeCountSql?: PageUserVO
-    searchCount?: PageUserVO
-    optimizeJoinOfCountSql?: boolean
-    maxLimit?: number
-    countId?: string
-    pages?: number
+    pageNumber?: number
+    pageSize?: number
+    totalPage?: number
+    totalRow?: number
+    optimizeCountQuery?: boolean
+  }
+
+  type removeParams = {
+    id: number
   }
 
   type User = {
@@ -98,14 +109,6 @@ declare namespace API {
     userAvatar?: string
     userProfile?: string
     userRole?: string
-  }
-
-  type UserEditRequest = {
-    id?: number
-    userName?: string
-    userAvatar?: string
-    userProfile?: string
-    userPassword?: string
   }
 
   type UserLoginRequest = {

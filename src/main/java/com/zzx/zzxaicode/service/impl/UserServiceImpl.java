@@ -23,7 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static com.zzx.zzxaicode.constants.UserConstants.USER_LOGIN_STATE;
+import static com.zzx.zzxaicode.constants.UserConstant.USER_LOGIN_STATE;
 
 /**
  * 用户 服务层实现。

@@ -3,7 +3,7 @@ package com.zzx.zzxaicode.constants;
 /**
  * 用户常量
  */
-public interface UserConstants {
+public interface UserConstant {
 
     /**
      * 加密密钥

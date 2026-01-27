@@ -14,10 +14,7 @@ import com.zzx.zzxaicode.constants.UserConstant;
 import com.zzx.zzxaicode.exception.BusinessException;
 import com.zzx.zzxaicode.exception.ErrorCode;
 import com.zzx.zzxaicode.exception.ThrowUtils;
-import com.zzx.zzxaicode.model.dto.app.AppAddRequest;
-import com.zzx.zzxaicode.model.dto.app.AppAdminUpdateRequest;
-import com.zzx.zzxaicode.model.dto.app.AppQueryRequest;
-import com.zzx.zzxaicode.model.dto.app.AppUpdateRequest;
+import com.zzx.zzxaicode.model.dto.app.*;
 import com.zzx.zzxaicode.model.enums.CodeGenTypeEnum;
 import com.zzx.zzxaicode.model.po.User;
 import com.zzx.zzxaicode.model.vo.AppVO;
@@ -50,6 +47,25 @@ public class AppController {
 
     @Resource
     private UserService userService;
+
+
+
+    /**
+     * 应用部署
+     *
+     * @param appDeployRequest 应用部署请求
+     * @param request          请求
+     * @return 应用部署结果的 URL
+     */
+    @PostMapping("/deploy")
+    public BaseResponse<String> deployApp(@RequestBody AppDeployRequest appDeployRequest, HttpServletRequest request) {
+        ThrowUtils.throwIf(appDeployRequest == null || appDeployRequest.getAppId() == null, ErrorCode.PARAMS_ERROR);
+        // 获得当前登录用户
+        User loginUser = userService.getLoginUser(request);
+        // 调用服务部署应用获得访问 URL
+        String deployUrl = appService.deployApp(appDeployRequest.getAppId(), loginUser);
+        return ResultUtils.success(deployUrl);
+    }
 
 
     /**

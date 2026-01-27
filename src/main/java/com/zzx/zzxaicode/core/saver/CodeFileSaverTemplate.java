@@ -1,16 +1,13 @@
 package com.zzx.zzxaicode.core.saver;
 
 import cn.hutool.core.io.FileUtil;
-import cn.hutool.core.util.IdUtil;
+import com.zzx.zzxaicode.constants.AppConstant;
 import com.zzx.zzxaicode.exception.BusinessException;
 import com.zzx.zzxaicode.exception.ErrorCode;
 import com.zzx.zzxaicode.model.enums.CodeGenTypeEnum;
-import dev.langchain4j.agent.tool.P;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 
 /**
  * 代码文件保存模板类
@@ -23,7 +20,7 @@ public abstract class CodeFileSaverTemplate<T> {
      * 文件保存根目录
      * 默认保存到当前项目目录下的tmp/code_output子目录
      */
-    private static final String FILE_SAVE_ROOT_DIR = System.getProperty("user.dir") + "/tmp/code_output";
+    private static final String FILE_SAVE_ROOT_DIR = AppConstant.CODE_OUTPUT_ROOT_DIR;
 
 
     /**

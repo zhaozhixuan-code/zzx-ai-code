@@ -20,14 +20,14 @@ class AiCodeGeneratorFacadeTest {
 
     @Test
     void generateAndSaveCode() {
-        File file = aiCodeGeneratorFacade.generateAndSaveCode("帮我做一个工作记录的小工具,不超过30行代码", CodeGenTypeEnum.HTML);
+        File file = aiCodeGeneratorFacade.generateAndSaveCode("帮我做一个工作记录的小工具,不超过30行代码", CodeGenTypeEnum.HTML, 1L);
         Assertions.assertNotNull(file);
 
     }
 
     @Test
     void generateAndSaveCodeStream() {
-        Flux<String> codeStream = aiCodeGeneratorFacade.generateAndSaveCodeStream("帮我做一个工作记录的小工具,不超过30行代码", CodeGenTypeEnum.HTML);
+        Flux<String> codeStream = aiCodeGeneratorFacade.generateAndSaveCodeStream("帮我做一个工作记录的小工具,不超过30行代码", CodeGenTypeEnum.MULTI_FILE, 373574253417553920L);
         // 阻塞等待所有数据接收完毕
         List<String> block = codeStream.collectList().block();
         System.out.println(block);

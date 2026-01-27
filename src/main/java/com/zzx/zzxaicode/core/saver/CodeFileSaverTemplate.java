@@ -5,6 +5,7 @@ import cn.hutool.core.util.IdUtil;
 import com.zzx.zzxaicode.exception.BusinessException;
 import com.zzx.zzxaicode.exception.ErrorCode;
 import com.zzx.zzxaicode.model.enums.CodeGenTypeEnum;
+import dev.langchain4j.agent.tool.P;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -31,11 +32,11 @@ public abstract class CodeFileSaverTemplate<T> {
      * @param result 代码结果对象
      * @return 保存后的目录File对象
      */
-    public File saveCode(T result) {
+    public File saveCode(T result, Long appId) {
         // 1. 输入校验
         this.validateInput(result);
         // 2. 构建唯一目录
-        String baseDirPath = buildUniqueDir();
+        String baseDirPath = buildUniqueDir(appId);
         // 3. 把代码保存到文件(实现交给子类)
         saveFile(baseDirPath, result);
         // 4. 返回保存目录的File对象
@@ -58,15 +59,17 @@ public abstract class CodeFileSaverTemplate<T> {
      * 构建唯一目录
      * 通过业务类型+时间戳+雪花ID创建唯一目录名，避免重复
      *
-     * @return 唯一目录路径，格式为: tmp/code_output/biz_type/日期_雪花ID
+     * @param appId 应用ID
+     * @return 唯一目录路径，格式为: tmp/code_output/biz_type_appId
      */
-    protected String buildUniqueDir() {
-        // 获取当前日期
-        String date = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+    protected String buildUniqueDir(Long appId) {
+        if (appId == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "应用 ID 不能为空");
+        }
         // 获得业务类型
         String bizType = getCodeType().getValue();
         // 组合业务类型、当前时间戳和雪花算法生成的唯一ID作为目录名
-        String uniqueDirName = bizType + File.separator + date + "_" + IdUtil.getSnowflakeNextIdStr();
+        String uniqueDirName = bizType + "_" + appId;
         // 拼接完整目录路径
         String dirPath = FILE_SAVE_ROOT_DIR + File.separator + uniqueDirName;
         // 创建目录（如果不存在则自动创建）

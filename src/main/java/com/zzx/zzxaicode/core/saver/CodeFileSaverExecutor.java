@@ -12,22 +12,23 @@ import java.io.File;
  */
 public class CodeFileSaverExecutor {
 
-    private static final CodeFileSaverTemplate<HtmlCodeResult> htmlCodeFileSaver = new HtmlCodeFileSaverTemplate();
+    private static final HtmlCodeFileSaverTemplate htmlCodeFileSaver = new HtmlCodeFileSaverTemplate();
 
-    private static final CodeFileSaverTemplate<MultiFileCodeResult> multiFileCodeFileSaver = new MultiFileCodeFileSaverTemplate();
+    private static final MultiFileCodeFileSaverTemplate multiFileCodeFileSaver = new MultiFileCodeFileSaverTemplate();
 
     /**
      * 执行代码保存器
      *
      * @param codeResult  代码结果
      * @param codeGenType 生成类型
+     * @param appId       应用ID
      * @return 保存的文件
      */
-    public static File executeSaver(Object codeResult, CodeGenTypeEnum codeGenType) {
+    public static File executeSaver(Object codeResult, CodeGenTypeEnum codeGenType, Long appId) {
         return switch (codeGenType) {
-            case HTML -> htmlCodeFileSaver.saveCode((HtmlCodeResult) codeResult);
+            case HTML -> htmlCodeFileSaver.saveCode((HtmlCodeResult) codeResult, appId);
 
-            case MULTI_FILE -> multiFileCodeFileSaver.saveCode((MultiFileCodeResult) codeResult);
+            case MULTI_FILE -> multiFileCodeFileSaver.saveCode((MultiFileCodeResult) codeResult, appId);
 
             default -> throw new RuntimeException("不支持的生成类型");
         };

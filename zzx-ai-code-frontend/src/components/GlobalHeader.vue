@@ -48,50 +48,43 @@
 </template>
 
 <script setup lang="ts">
-// ==================== 导入语句 ====================
-// Vue 相关
-import { computed, ref } from 'vue'
+import { computed, h, ref } from 'vue'
 import { useRouter } from 'vue-router'
-
-// UI 组件
 import { type MenuProps, message } from 'ant-design-vue'
-
-// 图标
+import { useLoginUserStore } from '@/stores/loginUser.ts'
+import { userLogout } from '@/api/userController.ts'
 import { LogoutOutlined, HomeOutlined } from '@ant-design/icons-vue'
 
-// Store
-import { useLoginUserStore } from '@/stores/loginUser.ts'
-
-// API
-import { userLogout } from '@/api/userController.ts'
-
-// ==================== 响应式数据 ====================
-// 路由器实例
-const router = useRouter()
-
-// Store 实例
 const loginUserStore = useLoginUserStore()
-
+const router = useRouter()
 // 当前选中菜单
 const selectedKeys = ref<string[]>(['/'])
+// 监听路由变化，更新当前选中菜单
+router.afterEach((to, from, next) => {
+  selectedKeys.value = [to.path]
+})
 
-// ==================== 菜单配置 ====================
-// 原始菜单配置项
+// 菜单配置项
 const originItems = [
   {
     key: '/',
+    icon: () => h(HomeOutlined),
     label: '主页',
-    title: '主页'
+    title: '主页',
   },
   {
     key: '/admin/userManage',
     label: '用户管理',
-    title: '用户管理'
+    title: '用户管理',
+  },
+  {
+    key: '/admin/appManage',
+    label: '应用管理',
+    title: '应用管理',
   }
 ]
 
-// ==================== 工具函数 ====================
-// 过滤菜单项（根据用户权限）
+// 过滤菜单项
 const filterMenus = (menus = [] as MenuProps['items']) => {
   return menus?.filter((menu) => {
     const menuKey = menu?.key as string
@@ -105,11 +98,9 @@ const filterMenus = (menus = [] as MenuProps['items']) => {
   })
 }
 
-// ==================== 计算属性 ====================
 // 展示在菜单的路由数组
 const menuItems = computed<MenuProps['items']>(() => filterMenus(originItems))
 
-// ==================== 事件处理 ====================
 // 处理菜单点击
 const handleMenuClick: MenuProps['onClick'] = (e) => {
   const key = e.key as string
@@ -120,12 +111,12 @@ const handleMenuClick: MenuProps['onClick'] = (e) => {
   }
 }
 
-// 用户注销
+// 退出登录
 const doLogout = async () => {
   const res = await userLogout()
   if (res.data.code === 0) {
     loginUserStore.setLoginUser({
-      userName: '未登录'
+      userName: '未登录',
     })
     message.success('退出登录成功')
     await router.push('/user/login')
@@ -133,12 +124,6 @@ const doLogout = async () => {
     message.error('退出登录失败，' + res.data.message)
   }
 }
-
-// ==================== 生命周期 ====================
-// 监听路由变化，更新当前选中菜单
-router.afterEach((to, from, next) => {
-  selectedKeys.value = [to.path]
-})
 </script>
 
 <style scoped>

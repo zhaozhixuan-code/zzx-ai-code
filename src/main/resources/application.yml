@@ -3,11 +3,19 @@ spring:
     name: zzx-ai-code-backend
   profiles:
     active: local
+  # mysql
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://${zzx-ai-code.spring.datasource.host}:${zzx-ai-code.spring.datasource.port}/zzx_ai_code?serverTimezone=Asia/Shanghai&useUnicode=true&characterEncoding=utf-8&allowPublicKeyRetrieval=true&useSSL=false
     username: ${zzx-ai-code.spring.datasource.username}
     password: ${zzx-ai-code.spring.datasource.password}
+  # redis
+  data:
+    redis:
+      host: ${zzx-ai-code.spring.data.redis.host}
+      port: ${zzx-ai-code.spring.data.redis.port}
+      password: ${zzx-ai-code.spring.data.redis.password}
+      timeout: 3000 # key - value 过期时间
 server:
   port: 8123
   servlet:

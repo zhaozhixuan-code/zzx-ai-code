@@ -6,6 +6,7 @@ import com.mybatisflex.core.service.IService;
 import com.zzx.zzxaicode.model.chathistory.ChatHistoryQueryRequest;
 import com.zzx.zzxaicode.model.po.ChatHistory;
 import com.zzx.zzxaicode.model.po.User;
+import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 
 import java.time.LocalDateTime;
 
@@ -27,6 +28,15 @@ public interface ChatHistoryService extends IService<ChatHistory> {
      */
     boolean addChatMessage(Long appId, String message, String messageType, Long userId);
 
+    /**
+     * 获取对话消息
+     *
+     * @param appid      应用ID
+     * @param chatMemory 会话内存
+     * @param maxCount   最大数量
+     * @return 获得到的对话数量
+     */
+    int loadChatHistoryToMemory(Long appid, MessageWindowChatMemory chatMemory, int maxCount);
 
     /**
      * 删除对话消息

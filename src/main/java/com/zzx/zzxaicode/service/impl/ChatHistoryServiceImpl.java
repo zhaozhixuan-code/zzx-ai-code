@@ -15,11 +15,16 @@ import com.zzx.zzxaicode.mapper.ChatHistoryMapper;
 import com.zzx.zzxaicode.model.po.User;
 import com.zzx.zzxaicode.service.AppService;
 import com.zzx.zzxaicode.service.ChatHistoryService;
+import dev.langchain4j.data.message.AiMessage;
+import dev.langchain4j.data.message.UserMessage;
+import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 对话历史 服务层实现。
@@ -27,6 +32,7 @@ import java.time.LocalDateTime;
  * @author <a href="https://github.com/zhaozhixuan-code/">zhaozhixuan</a>
  */
 @Service
+@Slf4j
 public class ChatHistoryServiceImpl extends ServiceImpl<ChatHistoryMapper, ChatHistory> implements ChatHistoryService {
 
 
@@ -60,6 +66,44 @@ public class ChatHistoryServiceImpl extends ServiceImpl<ChatHistoryMapper, ChatH
                 .userId(userId)
                 .build();
         return this.save(chatHistory);
+    }
+
+    /**
+     * 获取对话消息
+     *
+     * @param appid      应用ID
+     * @param chatMemory 会话内存
+     * @param maxCount   最大数量
+     * @return 获得到的对话数量
+     */
+    @Override
+    public int loadChatHistoryToMemory(Long appid, MessageWindowChatMemory chatMemory, int maxCount) {
+        // 构造查询条件
+        QueryWrapper queryWrapper = QueryWrapper.create()
+                .eq(ChatHistory::getAppId, appid)
+                .orderBy(ChatHistory::getCreateTime, false)
+                .limit(maxCount);
+        List<ChatHistory> chatHistoryList = this.list(queryWrapper);
+        if (chatHistoryList.isEmpty()) {
+            return 0;
+        }
+        // 翻转列表
+        chatHistoryList = chatHistoryList.reversed();
+        // 先清理历史缓存
+        chatMemory.clear();
+        int count = 0;
+        for (ChatHistory chatHistory : chatHistoryList) {
+            // 添加到会话内存
+            if (ChatHistoryMessageTypeEnum.USER.getValue().equals(chatHistory.getMessageType())) {
+                chatMemory.add(UserMessage.from(chatHistory.getMessage()));
+                count++;
+            } else if (ChatHistoryMessageTypeEnum.AI.getValue().equals(chatHistory.getMessageType())) {
+                chatMemory.add(AiMessage.from(chatHistory.getMessage()));
+                count++;
+            }
+        }
+        log.info("加载了 {} 条对话消息到会话内存", count);
+        return count;
     }
 
 

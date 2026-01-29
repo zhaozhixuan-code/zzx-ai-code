@@ -2,6 +2,7 @@ package com.zzx.zzxaicode.ai;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.zzx.zzxaicode.service.ChatHistoryService;
 import dev.langchain4j.community.store.memory.chat.redis.RedisChatMemoryStore;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.model.chat.ChatModel;
@@ -29,6 +30,9 @@ public class AiCodeGeneratorServiceFactory {
 
     @Resource
     private RedisChatMemoryStore redisChatMemoryStore;
+
+    @Resource
+    private ChatHistoryService chatHistoryService;
 
 
     /**
@@ -84,6 +88,8 @@ public class AiCodeGeneratorServiceFactory {
                 .chatMemoryStore(redisChatMemoryStore)
                 .maxMessages(10)
                 .build();
+        // 从数据库加载历史对话到记忆
+        chatHistoryService.loadChatHistoryToMemory(appId, chatMemory, 10);
         return AiServices.builder(AiCodeGeneratorService.class)
                 .chatModel(chatModel)
                 .streamingChatModel(streamingChatModel)

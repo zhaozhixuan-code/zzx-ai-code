@@ -56,12 +56,34 @@ public class AiCodeGeneratorServiceFactory {
      */
     public AiCodeGeneratorService getAiCodeGeneratorService(long appId) {
         // 根据 appId 构建独立的对话记忆
+        // MessageWindowChatMemory chatMemory = MessageWindowChatMemory.builder()
+        //         .id(appId)
+        //         .chatMemoryStore(redisChatMemoryStore)
+        //         .maxMessages(10)
+        //         .build();
+        //
+        // return AiServices.builder(AiCodeGeneratorService.class)
+        //         .chatModel(chatModel)
+        //         .streamingChatModel(streamingChatModel)
+        //         .chatMemory(chatMemory)
+        //         .build();
+        // 如果没有获得到，则默认创建一个
+        return serviceCache.get(appId, this::createAiCodeGeneratorService);
+    }
+
+    /**
+     * 创建服务
+     *
+     * @param appId
+     * @return
+     */
+    private AiCodeGeneratorService createAiCodeGeneratorService(long appId) {
+        // 根据 appId 构建独立的对话记忆
         MessageWindowChatMemory chatMemory = MessageWindowChatMemory.builder()
                 .id(appId)
                 .chatMemoryStore(redisChatMemoryStore)
                 .maxMessages(10)
                 .build();
-
         return AiServices.builder(AiCodeGeneratorService.class)
                 .chatModel(chatModel)
                 .streamingChatModel(streamingChatModel)

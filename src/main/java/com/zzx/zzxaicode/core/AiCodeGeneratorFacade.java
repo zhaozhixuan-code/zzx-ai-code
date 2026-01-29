@@ -2,6 +2,7 @@ package com.zzx.zzxaicode.core;
 
 
 import com.zzx.zzxaicode.ai.AiCodeGeneratorService;
+import com.zzx.zzxaicode.ai.AiCodeGeneratorServiceFactory;
 import com.zzx.zzxaicode.ai.model.HtmlCodeResult;
 import com.zzx.zzxaicode.ai.model.MultiFileCodeResult;
 import com.zzx.zzxaicode.core.parser.CodeParserExecutor;
@@ -27,7 +28,7 @@ public class AiCodeGeneratorFacade {
      * Ai 代码生成服务
      */
     @Resource
-    private AiCodeGeneratorService aiCodeGeneratorService;
+    private AiCodeGeneratorServiceFactory aiCodeGeneratorServiceFactory;
 
     /**
      * 生成代码并保存入口方法
@@ -40,6 +41,8 @@ public class AiCodeGeneratorFacade {
         if (codeGenType == null) {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "生成类型为空");
         }
+        // 根据 appId 获取 Ai 代码生成服务实例
+        AiCodeGeneratorService aiCodeGeneratorService = aiCodeGeneratorServiceFactory.getAiCodeGeneratorService(appId);
         return switch (codeGenType) {
             case HTML -> {
                 HtmlCodeResult htmlCodeResult = aiCodeGeneratorService.generateHtmlCodeForResult(userMessage);
@@ -69,6 +72,8 @@ public class AiCodeGeneratorFacade {
         if (codeGenType == null) {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "生成类型为空");
         }
+        // 根据 appId 获取 Ai 代码生成服务实例
+        AiCodeGeneratorService aiCodeGeneratorService = aiCodeGeneratorServiceFactory.getAiCodeGeneratorService(appId);
         return switch (codeGenType) {
             case HTML: {
                 // 调用接口，生成HTML代码

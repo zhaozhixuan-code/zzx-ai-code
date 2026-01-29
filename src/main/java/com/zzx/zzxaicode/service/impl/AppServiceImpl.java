@@ -97,8 +97,9 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
             String aiResponse = aiResultBuilder.toString();
             chatHistoryService.addChatMessage(appId, aiResponse, ChatHistoryMessageTypeEnum.AI.getValue(), loginUser.getId());
         }).doOnError(throwable -> {
+            String aiResponse = aiResultBuilder.toString();
             // 添加错误信息到对话历史
-            String errorMessage = "AI 回复失败" + throwable.getMessage();
+            String errorMessage = "AI 回复失败" + throwable.getMessage() + aiResponse;
             chatHistoryService.addChatMessage(appId, errorMessage, ChatHistoryMessageTypeEnum.AI.getValue(), loginUser.getId());
         });
     }

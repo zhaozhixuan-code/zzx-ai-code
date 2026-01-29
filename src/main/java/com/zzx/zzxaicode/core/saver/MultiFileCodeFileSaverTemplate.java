@@ -35,11 +35,17 @@ public class MultiFileCodeFileSaverTemplate extends CodeFileSaverTemplate<MultiF
         String jsCode = result.getJsCode();
 
         // 保存 html 文件
-        writeToFile(baseDirPath, "index.html", htmlCode);
+        if (StrUtil.isNotEmpty(htmlCode)) {
+            writeToFile(baseDirPath, "index.html", htmlCode);
+        }
         // 保存 css 文件
-        writeToFile(baseDirPath, "style.css", cssCode);
+        if (StrUtil.isNotEmpty(cssCode)) {
+            writeToFile(baseDirPath, "style.css", cssCode);
+        }
         // 保存 js 文件
-        writeToFile(baseDirPath, "script.js", jsCode);
+        if (StrUtil.isNotEmpty(jsCode)) {
+            writeToFile(baseDirPath, "script.js", jsCode);
+        }
     }
 
     /**
@@ -50,10 +56,11 @@ public class MultiFileCodeFileSaverTemplate extends CodeFileSaverTemplate<MultiF
     @Override
     protected void validateInput(MultiFileCodeResult result) {
         super.validateInput(result);
-        // html 参数必须不能为空
-        String htmlCode = result.getHtmlCode();
-        if (StrUtil.isEmpty(htmlCode)) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "html 参数为空");
-        }
+        // html 参数必须不能为空,
+        // 修改html可以为空
+        // String htmlCode = result.getHtmlCode();
+        // if (StrUtil.isEmpty(htmlCode)) {
+        //     throw new BusinessException(ErrorCode.PARAMS_ERROR, "html 参数为空");
+        // }
     }
 }

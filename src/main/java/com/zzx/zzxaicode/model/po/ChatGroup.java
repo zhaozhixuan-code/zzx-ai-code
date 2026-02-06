@@ -4,7 +4,6 @@ import com.mybatisflex.annotation.Column;
 import com.mybatisflex.annotation.Id;
 import com.mybatisflex.annotation.KeyType;
 import com.mybatisflex.annotation.Table;
-
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
@@ -15,10 +14,9 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.aspectj.apache.bcel.generic.IINC;
 
 /**
- * 对话历史 实体类。
+ * 对话房间 实体类。
  *
  * @author <a href="https://github.com/zhaozhixuan-code/">zhaozhixuan</a>
  */
@@ -26,8 +24,8 @@ import org.aspectj.apache.bcel.generic.IINC;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Table("chat_history")
-public class ChatHistory implements Serializable {
+@Table("chat_group")
+public class ChatGroup implements Serializable {
 
     @Serial
     private static final long serialVersionUID = 1L;
@@ -39,40 +37,22 @@ public class ChatHistory implements Serializable {
     private Long id;
 
     /**
-     * 消息
-     */
-    private String message;
-
-    /**
-     * user/ai
-     */
-    @Column("messageType")
-    private String messageType;
-
-    /**
      * 应用id
      */
     @Column("appId")
     private Long appId;
 
     /**
-     * 创建用户id
+     * 房间名称
      */
-    @Column("userId")
-    private Long userId;
+    @Column("roomName")
+    private String roomName;
 
     /**
-     * 群组id，关联chat_group.id，null表示单人会话
+     * 创建者用户ID
      */
-    @Column("groupId")
-    private Long groupId;
-
-    /**
-     * 标记是否为从单人同步的历史消息
-     * 0-原生消息，1-从单人同步到群聊的消息
-     */
-    @Column("migrateFlag")
-    private Integer migrateFlag;
+    @Column("creatorId")
+    private Long creatorId;
 
     /**
      * 创建时间

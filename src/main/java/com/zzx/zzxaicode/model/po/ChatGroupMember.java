@@ -4,7 +4,6 @@ import com.mybatisflex.annotation.Column;
 import com.mybatisflex.annotation.Id;
 import com.mybatisflex.annotation.KeyType;
 import com.mybatisflex.annotation.Table;
-
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
@@ -15,10 +14,9 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.aspectj.apache.bcel.generic.IINC;
 
 /**
- * 对话历史 实体类。
+ * 群组成员表 实体类。
  *
  * @author <a href="https://github.com/zhaozhixuan-code/">zhaozhixuan</a>
  */
@@ -26,8 +24,8 @@ import org.aspectj.apache.bcel.generic.IINC;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Table("chat_history")
-public class ChatHistory implements Serializable {
+@Table("chat_group_member")
+public class ChatGroupMember implements Serializable {
 
     @Serial
     private static final long serialVersionUID = 1L;
@@ -39,40 +37,39 @@ public class ChatHistory implements Serializable {
     private Long id;
 
     /**
-     * 消息
-     */
-    private String message;
-
-    /**
-     * user/ai
-     */
-    @Column("messageType")
-    private String messageType;
-
-    /**
-     * 应用id
-     */
-    @Column("appId")
-    private Long appId;
-
-    /**
-     * 创建用户id
-     */
-    @Column("userId")
-    private Long userId;
-
-    /**
-     * 群组id，关联chat_group.id，null表示单人会话
+     * 群组ID
      */
     @Column("groupId")
     private Long groupId;
 
     /**
-     * 标记是否为从单人同步的历史消息
-     * 0-原生消息，1-从单人同步到群聊的消息
+     * 用户ID
      */
-    @Column("migrateFlag")
-    private Integer migrateFlag;
+    @Column("userId")
+    private Long userId;
+
+    /**
+     * 成员角色：admin-管理员，member-普通成员
+     */
+    private String role;
+
+    /**
+     * 加入时间
+     */
+    @Column("joinTime")
+    private LocalDateTime joinTime;
+
+    /**
+     * 退出时间
+     */
+    @Column("quitTime")
+    private LocalDateTime quitTime;
+
+    /**
+     * 是否退出：0-未退出，1-已退出
+     */
+    @Column("isQuit")
+    private Integer isQuit;
 
     /**
      * 创建时间

@@ -7,7 +7,7 @@ import com.zaxxer.hikari.HikariDataSource;
 public class MyBatisCodeGenerator {
 
     // 需要生成的表名
-    private static final String[] TABLE_NAMES = {"chat_history"};
+    private static final String[] TABLE_NAMES = {"chat_group_member"};
 
     public static void main(String[] args) {
         // 1. 配置数据源（硬编码数据库信息，直接替换为你的实际配置）

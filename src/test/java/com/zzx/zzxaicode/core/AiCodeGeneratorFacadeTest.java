@@ -32,4 +32,18 @@ class AiCodeGeneratorFacadeTest {
         List<String> block = codeStream.collectList().block();
         System.out.println(block);
     }
+
+    @Test
+    void generateVueProjectCodeStream() {
+        Flux<String> codeStream = aiCodeGeneratorFacade.generateAndSaveCodeStream(
+                "帮我做一个简单的任务记录网站，总代码量不超过 300 行",
+                CodeGenTypeEnum.VUE_PROJECT, 4L);
+        // 阻塞等待所有数据收集完成
+        List<String> result = codeStream.collectList().block();
+        // 验证结果
+        System.out.println(result);
+        String completeContent = String.join("", result);
+        Assertions.assertNotNull(completeContent);
+    }
+
 }

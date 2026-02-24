@@ -42,7 +42,7 @@ public class AiCodeGeneratorFacade {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "生成类型为空");
         }
         // 根据 appId 获取 Ai 代码生成服务实例
-        AiCodeGeneratorService aiCodeGeneratorService = aiCodeGeneratorServiceFactory.getAiCodeGeneratorService(appId);
+        AiCodeGeneratorService aiCodeGeneratorService = aiCodeGeneratorServiceFactory.getAiCodeGeneratorService(appId, codeGenType);
         return switch (codeGenType) {
             case HTML -> {
                 HtmlCodeResult htmlCodeResult = aiCodeGeneratorService.generateHtmlCodeForResult(userMessage);
@@ -73,7 +73,7 @@ public class AiCodeGeneratorFacade {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "生成类型为空");
         }
         // 根据 appId 获取 Ai 代码生成服务实例
-        AiCodeGeneratorService aiCodeGeneratorService = aiCodeGeneratorServiceFactory.getAiCodeGeneratorService(appId);
+        AiCodeGeneratorService aiCodeGeneratorService = aiCodeGeneratorServiceFactory.getAiCodeGeneratorService(appId, codeGenType);
         return switch (codeGenType) {
             case HTML: {
                 // 调用接口，生成HTML代码
@@ -83,6 +83,11 @@ public class AiCodeGeneratorFacade {
             case MULTI_FILE: {
                 // 调用接口，获取多文件代码
                 Flux<String> result = aiCodeGeneratorService.generateMultiFileCodeStream(userMessage);
+                yield processCodeStream(result, CodeGenTypeEnum.MULTI_FILE, appId);
+            }
+            case VUE_PROJECT: {
+                // 调用接口，获取多文件代码
+                Flux<String> result = aiCodeGeneratorService.generateVueProjectCodeStream(appId, userMessage);
                 yield processCodeStream(result, CodeGenTypeEnum.MULTI_FILE, appId);
             }
             default: {

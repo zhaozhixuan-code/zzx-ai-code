@@ -1,18 +1,27 @@
 package com.zzx.zzxaicode.core;
 
 
+import cn.hutool.json.JSONUtil;
 import com.zzx.zzxaicode.ai.AiCodeGeneratorService;
 import com.zzx.zzxaicode.ai.AiCodeGeneratorServiceFactory;
 import com.zzx.zzxaicode.ai.model.HtmlCodeResult;
 import com.zzx.zzxaicode.ai.model.MultiFileCodeResult;
+import com.zzx.zzxaicode.ai.model.message.AiResponseMessage;
+import com.zzx.zzxaicode.ai.model.message.ToolExecutedMessage;
+import com.zzx.zzxaicode.ai.model.message.ToolRequestMessage;
 import com.zzx.zzxaicode.core.parser.CodeParserExecutor;
 import com.zzx.zzxaicode.core.saver.CodeFileSaverExecutor;
 import com.zzx.zzxaicode.exception.BusinessException;
 import com.zzx.zzxaicode.exception.ErrorCode;
 import com.zzx.zzxaicode.model.enums.CodeGenTypeEnum;
+import dev.langchain4j.model.chat.response.ChatResponse;
+import dev.langchain4j.service.TokenStream;
+import dev.langchain4j.service.tool.ToolExecution;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.web.servlet.View;
 import reactor.core.publisher.Flux;
 
 import java.io.File;
@@ -29,6 +38,8 @@ public class AiCodeGeneratorFacade {
      */
     @Resource
     private AiCodeGeneratorServiceFactory aiCodeGeneratorServiceFactory;
+    @Autowired
+    private View error;
 
     /**
      * 生成代码并保存入口方法
@@ -87,8 +98,8 @@ public class AiCodeGeneratorFacade {
             }
             case VUE_PROJECT: {
                 // 调用接口，获取多文件代码
-                Flux<String> result = aiCodeGeneratorService.generateVueProjectCodeStream(appId, userMessage);
-                yield processCodeStream(result, CodeGenTypeEnum.MULTI_FILE, appId);
+                TokenStream tokenStream = aiCodeGeneratorService.generateVueProjectCodeStream(appId, userMessage);
+                yield processCodeStream(tokenStream);
             }
             default: {
                 String errorMessage = "不支持的生成类型" + codeGenType.getValue();
@@ -124,5 +135,44 @@ public class AiCodeGeneratorFacade {
                 });
     }
 
+    /**
+     * 将 TokenStream 转换为 Flux<String>，并传递工具调用信息
+     *
+     * @param tokenStream TokenStream 对象
+     * @return Flux<String> 对象
+     */
+    private Flux<String> processCodeStream(TokenStream tokenStream) {
+        return Flux.create(
+                sink -> {
+                    tokenStream
+                            // AI 流式响应的内容（文本输出的内容）
+                            .onPartialResponse((String partialResponse) -> {
+                                AiResponseMessage aiResponseMessage = new AiResponseMessage(partialResponse);
+                                // 往 sink 中发送消息
+                                sink.next(JSONUtil.toJsonStr(aiResponseMessage));
+                            })
+                            // 处理 AI 调用工具时  (第几个工具，工具调用请求)
+                            .onPartialToolExecutionRequest((index, partialToolExecutionRequest) -> {
+                                ToolRequestMessage toolRequestMessage = new ToolRequestMessage(partialToolExecutionRequest);
+                                sink.next(JSONUtil.toJsonStr(toolRequestMessage));
+                            })
+                            // 工具调用完成的结果
+                            .onToolExecuted((ToolExecution toolExecution) -> {
+                                ToolExecutedMessage toolExecutedMessage = new ToolExecutedMessage(toolExecution);
+                                sink.next(JSONUtil.toJsonStr(toolExecutedMessage));
+                            })
+                            // 调用完成，流程结束
+                            .onCompleteResponse((ChatResponse chatResponse) -> {
+                                sink.complete();
+                            })
+                            .onError((Throwable error) -> {
+                                error.printStackTrace();
+                                sink.error(error);
+                            })
+                            // 开始监听
+                            .start();
+                }
+        );
+    }
 
 }

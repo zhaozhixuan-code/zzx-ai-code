@@ -10,6 +10,7 @@ import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
 import com.zzx.zzxaicode.constants.AppConstant;
 import com.zzx.zzxaicode.core.AiCodeGeneratorFacade;
+import com.zzx.zzxaicode.core.handler.StreamHandlerExecutor;
 import com.zzx.zzxaicode.exception.BusinessException;
 import com.zzx.zzxaicode.exception.ErrorCode;
 import com.zzx.zzxaicode.exception.ThrowUtils;
@@ -59,6 +60,10 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
     @Resource
     private ChatHistoryService chatHistoryService;
 
+    // 流处理器执行器
+    @Resource
+    private StreamHandlerExecutor streamHandlerExecutor;
+
 
     /**
      * 获取 AI 生成代码
@@ -87,21 +92,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         // 调用 AI 生成代码（流式）
         Flux<String> codeStream = aiCodeGeneratorFacade.generateAndSaveCodeStream(message, genType, appId);
         // 收集 AI 相应内容并在完成后添加到对话历史
-        StringBuilder aiResultBuilder = new StringBuilder();
-        return codeStream.map(chunk -> {
-            // 收集 AI 信息
-            aiResultBuilder.append(chunk);
-            return chunk;
-        }).doOnComplete(() -> {
-            // 流式响应完成后，添加 AI 信息到历史对话中
-            String aiResponse = aiResultBuilder.toString();
-            chatHistoryService.addChatMessage(appId, aiResponse, ChatHistoryMessageTypeEnum.AI.getValue(), loginUser.getId());
-        }).doOnError(throwable -> {
-            String aiResponse = aiResultBuilder.toString();
-            // 添加错误信息到对话历史
-            String errorMessage = "AI 回复失败" + throwable.getMessage() + aiResponse;
-            chatHistoryService.addChatMessage(appId, errorMessage, ChatHistoryMessageTypeEnum.AI.getValue(), loginUser.getId());
-        });
+        return streamHandlerExecutor.doExecute(codeStream, chatHistoryService, appId, loginUser, genType);
     }
 
     /**

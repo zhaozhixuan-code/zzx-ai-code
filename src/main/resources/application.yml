@@ -63,3 +63,12 @@ langchain4j:
       log-requests: true
       log-responses: true
       max-tokens: 8192 # 生成最大的token数
+
+# 添加腾讯云 COS 对象存储配置
+cos:
+  client:
+    host: ${zzx-ai-code.cos.client.host}
+    secret-id: ${zzx-ai-code.cos.client.secret-id}
+    secret-key: ${zzx-ai-code.cos.client.secret-key}
+    bucket: ${zzx-ai-code.cos.client.bucket}
+    region: ${zzx-ai-code.cos.client.region}

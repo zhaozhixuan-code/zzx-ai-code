@@ -25,6 +25,7 @@ import com.zzx.zzxaicode.model.vo.AppVO;
 import com.zzx.zzxaicode.model.vo.UserVO;
 import com.zzx.zzxaicode.service.AppService;
 import com.zzx.zzxaicode.service.ChatHistoryService;
+import com.zzx.zzxaicode.service.ScreenshotService;
 import com.zzx.zzxaicode.service.UserService;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
@@ -68,6 +69,10 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
     // Vue 项目构建器
     @Resource
     private VueProjectBuilder vueProjectBuilder;
+
+    // 截图服务
+    @Resource
+    private ScreenshotService screenshotService;
 
 
     /**
@@ -261,8 +266,30 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         updateApp.setDeployedTime(LocalDateTime.now());
         boolean update = this.updateById(updateApp);
         ThrowUtils.throwIf(!update, ErrorCode.SYSTEM_ERROR, "更新应用信息失败");
-        // 9. 返回可访问的 URL
-        return AppConstant.CODE_DEPLOY_HOST + "/" + deployKey + "/";
+        // 9. 得到可访问的 URL
+        String appDeployUrl = AppConstant.CODE_DEPLOY_HOST + "/" + deployKey + "/";
+        // 10. 异步生成封面截图并且更新封面
+        generateAppScreenshot(appId, appDeployUrl);
+        return appDeployUrl;
+    }
+
+    /**
+     * 异步调用截图服务
+     *
+     * @param appId 应用 ID
+     * @param appDeployUrl 应用部署的 URL
+     */
+    @Override
+    public void generateAppScreenshot(Long appId, String appDeployUrl) {
+        Thread.startVirtualThread(() -> {
+            String screenshotUrl = screenshotService.generateAndUploadScreenshot(appDeployUrl);
+            // 更新数据库
+            App updateApp = new App();
+            updateApp.setId(appId);
+            updateApp.setCover(screenshotUrl);
+            boolean update = this.updateById(updateApp);
+            ThrowUtils.throwIf(!update, ErrorCode.SYSTEM_ERROR, "更新应用封面失败");
+        });
     }
 
 }

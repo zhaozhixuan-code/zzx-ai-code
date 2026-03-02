@@ -52,8 +52,8 @@ langchain4j:
       log-responses: true
       max-tokens: 8192 # 生成最大的token数
       # 严格json
-      strict-json-schema: true
-      response-format: json-object
+#      strict-json-schema: true
+#      response-format: json-object
       max-retries: 0 # 最大重试次数
     # 流式
     streaming-chat-model:

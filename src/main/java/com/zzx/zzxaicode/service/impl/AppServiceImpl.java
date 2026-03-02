@@ -8,6 +8,7 @@ import cn.hutool.core.util.RandomUtil;
 import cn.hutool.core.util.StrUtil;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
+import com.zzx.zzxaicode.ai.AiCodeGenTypeRoutingService;
 import com.zzx.zzxaicode.constants.AppConstant;
 import com.zzx.zzxaicode.core.AiCodeGeneratorFacade;
 import com.zzx.zzxaicode.core.builder.VueProjectBuilder;
@@ -15,6 +16,7 @@ import com.zzx.zzxaicode.core.handler.StreamHandlerExecutor;
 import com.zzx.zzxaicode.exception.BusinessException;
 import com.zzx.zzxaicode.exception.ErrorCode;
 import com.zzx.zzxaicode.exception.ThrowUtils;
+import com.zzx.zzxaicode.model.dto.app.AppAddRequest;
 import com.zzx.zzxaicode.model.dto.app.AppQueryRequest;
 import com.zzx.zzxaicode.model.enums.ChatHistoryMessageTypeEnum;
 import com.zzx.zzxaicode.model.enums.CodeGenTypeEnum;
@@ -28,6 +30,7 @@ import com.zzx.zzxaicode.service.ChatHistoryService;
 import com.zzx.zzxaicode.service.ScreenshotService;
 import com.zzx.zzxaicode.service.UserService;
 import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Flux;
@@ -47,6 +50,7 @@ import java.util.stream.Collectors;
  * @author <a href="https://github.com/zhaozhixuan-code/">zhaozhixuan</a>
  */
 @Service
+@Slf4j
 public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppService {
 
 
@@ -74,6 +78,8 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
     @Resource
     private ScreenshotService screenshotService;
 
+    @Resource
+    private AiCodeGenTypeRoutingService aiCodeGenTypeRoutingService;
 
     /**
      * 获取 AI 生成代码
@@ -104,6 +110,36 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         // 收集 AI 相应内容并在完成后添加到对话历史
         return streamHandlerExecutor.doExecute(codeStream, chatHistoryService, appId, loginUser, genType);
     }
+
+
+    /**
+     * 创建应用
+     *
+     * @param appAddRequest 应用创建请求
+     * @param loginUser     登录用户
+     * @return 应用 ID
+     */
+    @Override
+    public Long createApp(AppAddRequest appAddRequest, User loginUser) {
+        // 参数校验
+        String initPrompt = appAddRequest.getInitPrompt();
+        ThrowUtils.throwIf(StrUtil.isBlank(initPrompt), ErrorCode.PARAMS_ERROR, "初始化 prompt 不能为空");
+        // 构造入库对象
+        App app = new App();
+        BeanUtil.copyProperties(appAddRequest, app);
+        app.setUserId(loginUser.getId());
+        // 应用名称暂时为 initPrompt 前 12 位
+        app.setAppName(initPrompt.substring(0, Math.min(initPrompt.length(), 12)));
+        // 使用 AI 智能选择代码生成类型
+        CodeGenTypeEnum selectedCodeGenType = aiCodeGenTypeRoutingService.routeCodeGenType(initPrompt);
+        app.setCodeGenType(selectedCodeGenType.getValue());
+        // 插入数据库
+        boolean result = this.save(app);
+        ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
+        log.info("应用创建成功，ID: {}, 类型: {}", app.getId(), selectedCodeGenType.getValue());
+        return app.getId();
+    }
+
 
     /**
      * 删除应用时关联删除对话历史
@@ -276,7 +312,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
     /**
      * 异步调用截图服务
      *
-     * @param appId 应用 ID
+     * @param appId        应用 ID
      * @param appDeployUrl 应用部署的 URL
      */
     @Override

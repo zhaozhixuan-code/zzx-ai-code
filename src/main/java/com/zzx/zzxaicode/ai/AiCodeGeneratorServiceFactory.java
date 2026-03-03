@@ -2,7 +2,7 @@ package com.zzx.zzxaicode.ai;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import com.zzx.zzxaicode.ai.tools.FileWriteTool;
+import com.zzx.zzxaicode.ai.tools.*;
 import com.zzx.zzxaicode.exception.BusinessException;
 import com.zzx.zzxaicode.exception.ErrorCode;
 import com.zzx.zzxaicode.model.enums.CodeGenTypeEnum;
@@ -41,6 +41,9 @@ public class AiCodeGeneratorServiceFactory {
 
     @Resource
     private ChatHistoryService chatHistoryService;
+
+    @Resource
+    private ToolManager toolManager;
 
 
     /**
@@ -86,7 +89,7 @@ public class AiCodeGeneratorServiceFactory {
     /**
      * 根据 appId 获取服务 （为了兼容老逻辑）
      *
-     * @param appId 应用 id
+     * @param appId       应用 id
      * @param codeGenType 代码生成类型
      * @return
      */
@@ -114,17 +117,12 @@ public class AiCodeGeneratorServiceFactory {
         return switch (codeGenType) {
             // VUE 项目使用工具调用和推理模型
             case VUE_PROJECT -> AiServices.builder(AiCodeGeneratorService.class)
-                    .chatModel(chatModel)
                     .streamingChatModel(reasoningStreamingChatModel)
-                    .chatMemory(chatMemory)
-                    // 需要进行会话隔离，要不然会报非空错误
                     .chatMemoryProvider(memoryId -> chatMemory)
-                    // 添加文件写入工具
-                    .tools(new FileWriteTool())
-                    // 处理工具调用幻觉问题
-                    .hallucinatedToolNameStrategy(toolExecutionRequest ->
-                            ToolExecutionResultMessage.from(toolExecutionRequest,
-                                    "Error: there is no tool called " + toolExecutionRequest.name()))
+                    .tools(toolManager.getAllTools())
+                    .hallucinatedToolNameStrategy(toolExecutionRequest -> ToolExecutionResultMessage.from(
+                            toolExecutionRequest, "Error: there is no tool called " + toolExecutionRequest.name()
+                    ))
                     .build();
             // HTML 和 多文件模式使用流式对话模型
             case MULTI_FILE, HTML -> AiServices.builder(AiCodeGeneratorService.class)
@@ -156,6 +154,7 @@ public class AiCodeGeneratorServiceFactory {
 
     /**
      * 构建缓存键
+     *
      * @param appId
      * @param codeGenType
      * @return

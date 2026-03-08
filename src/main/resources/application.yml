@@ -51,6 +51,7 @@ langchain4j:
       log-requests: true
       log-responses: true
       max-tokens: 8192 # 生成最大的token数
+      timeout: 180s # 超时时间设置为 180s
       # 严格json
 #      strict-json-schema: true
 #      response-format: json-object
@@ -72,3 +73,12 @@ cos:
     secret-key: ${zzx-ai-code.cos.client.secret-key}
     bucket: ${zzx-ai-code.cos.client.bucket}
     region: ${zzx-ai-code.cos.client.region}
+
+# pexels图片搜索api
+pexels:
+  api-key: ${zzx-ai-code.pexels.api-key}
+
+# 阿里云 DashScope 配置
+dashscope:
+  api-key: ${zzx-ai-code.dashscope.api-key}
+  image-model: ${zzx-ai-code.dashscope.image-model}

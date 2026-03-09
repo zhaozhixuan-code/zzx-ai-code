@@ -64,6 +64,22 @@ langchain4j:
       log-requests: true
       log-responses: true
       max-tokens: 8192 # 生成最大的token数
+    # 推理 AI 模型配置（用于复杂的推理任务）
+    reasoning-streaming-chat-model:
+      base-url: https://api.deepseek.com
+      api-key: ${zzx-ai-code.langchain4j.open-ai.chat-model.api-key}
+      model-name: ${zzx-ai-code.langchain4j.open-ai.chat-model.model-name}
+      max-tokens: 8192    # 默认使用最简单的模型 根据模型能力可修改32768
+      temperature: 0.1
+      log-requests: true
+      log-responses: true
+    # 智能路由 AI 模型配置（用于简单的分类任务）
+    routing-chat-model:
+      base-url: https://api.deepseek.com
+      api-key: ${zzx-ai-code.langchain4j.open-ai.chat-model.api-key}
+      model-name: ${zzx-ai-code.langchain4j.open-ai.chat-model.model-name}
+      log-requests: true
+      log-responses: true
 
 # 添加腾讯云 COS 对象存储配置
 cos:

@@ -1,6 +1,7 @@
 package com.zzx.zzxaicode.langgraph4j.state;
 
 import com.zzx.zzxaicode.langgraph4j.model.ImageResource;
+import com.zzx.zzxaicode.langgraph4j.model.QualityResult;
 import com.zzx.zzxaicode.model.enums.CodeGenTypeEnum;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -61,6 +62,11 @@ public class WorkflowContext implements Serializable {
      * 生成的代码目录
      */
     private String generatedCodeDir;
+
+    /**
+     * 质量检查结果
+     */
+    private QualityResult qualityResult;
 
     /**
      * 构建成功的目录

@@ -21,6 +21,7 @@ spring:
       port: ${zzx-ai-code.spring.data.redis.port}
       password: ${zzx-ai-code.spring.data.redis.password}
       timeout: 3000 # key - value 过期时间
+      ttl: 3600
 server:
   port: 8123
   servlet:

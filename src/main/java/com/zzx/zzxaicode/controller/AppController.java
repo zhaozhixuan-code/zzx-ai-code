@@ -5,7 +5,6 @@ import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
 import com.mybatisflex.core.paginate.Page;
 import com.mybatisflex.core.query.QueryWrapper;
-import com.zzx.zzxaicode.ai.AiCodeGenTypeRoutingService;
 import com.zzx.zzxaicode.annotation.AuthCheck;
 import com.zzx.zzxaicode.common.BaseResponse;
 import com.zzx.zzxaicode.common.DeleteRequest;
@@ -16,9 +15,10 @@ import com.zzx.zzxaicode.exception.BusinessException;
 import com.zzx.zzxaicode.exception.ErrorCode;
 import com.zzx.zzxaicode.exception.ThrowUtils;
 import com.zzx.zzxaicode.model.dto.app.*;
-import com.zzx.zzxaicode.model.enums.CodeGenTypeEnum;
 import com.zzx.zzxaicode.model.po.User;
 import com.zzx.zzxaicode.model.vo.AppVO;
+import com.zzx.zzxaicode.ratelimter.annotation.RateLimit;
+import com.zzx.zzxaicode.ratelimter.enums.RateLimitType;
 import com.zzx.zzxaicode.service.ProjectDownloadService;
 import com.zzx.zzxaicode.service.UserService;
 import jakarta.annotation.Resource;
@@ -121,6 +121,7 @@ public class AppController {
      * @return 生成结果流
      */
     @GetMapping(value = "/chat/gen/code", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @RateLimit(limitType = RateLimitType.USER, rate = 5, rateInterval = 60, message = "AI 对话请求过于频繁，请稍后再试")
     public Flux<ServerSentEvent<String>> chatToGenCode(@RequestParam Long appId,
                                                        @RequestParam String message,
                                                        HttpServletRequest request) {

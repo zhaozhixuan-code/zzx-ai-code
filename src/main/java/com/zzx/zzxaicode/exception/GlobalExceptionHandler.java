@@ -3,6 +3,7 @@ package com.zzx.zzxaicode.exception;
 import cn.hutool.json.JSONUtil;
 import com.zzx.zzxaicode.common.BaseResponse;
 import com.zzx.zzxaicode.common.ResultUtils;
+import dev.langchain4j.guardrail.GuardrailException;
 import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -14,6 +15,8 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Hidden
 @RestControllerAdvice
@@ -29,6 +32,54 @@ public class GlobalExceptionHandler {
         }
         // 对于普通请求，返回标准 JSON 响应
         return ResultUtils.error(e.getCode(), e.getMessage());
+    }
+
+    /**
+     * 处理 GuardrailException LangChain4j 的护轨错误
+     * @param e
+     * @return
+     */
+    @ExceptionHandler(GuardrailException.class)
+    public BaseResponse<?> guardrailExceptionHandler(GuardrailException e) {
+        log.error("GuardrailException", e);
+
+        // 从 GuardrailException 消息中提取原始错误信息
+        // 格式："The guardrail xxx failed with this message: 实际错误消息"
+        String errorMessage = extractOriginalMessage(e.getMessage());
+
+        // 尝试处理 SSE 请求
+        if (handleSseError(ErrorCode.PARAMS_ERROR.getCode(), errorMessage)) {
+            return null;
+        }
+        // 对于普通请求，返回标准 JSON 响应
+        return ResultUtils.error(ErrorCode.PARAMS_ERROR.getCode(), errorMessage);
+    }
+
+    /**
+     * 从 GuardrailException 消息中提取原始错误信息
+     * @param message GuardrailException 的原始消息
+     * @return 提取后的原始错误信息
+     */
+    private String extractOriginalMessage(String message) {
+        if (message == null || message.isEmpty()) {
+            return "输入验证失败";
+        }
+
+        // 使用正则表达式匹配 "failed with this message: " 后面的内容
+        Pattern pattern = Pattern.compile("failed with this message:\\s*(.+)$");
+        Matcher matcher = pattern.matcher(message);
+
+        if (matcher.find()) {
+            return matcher.group(1).trim();
+        }
+
+        // 如果匹配失败，返回完整消息（去掉类名部分）
+        if (message.contains(":")) {
+            int lastColonIndex = message.lastIndexOf(":");
+            return message.substring(lastColonIndex + 1).trim();
+        }
+
+        return message;
     }
 
     @ExceptionHandler(RuntimeException.class)

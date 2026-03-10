@@ -2,6 +2,7 @@ package com.zzx.zzxaicode.ai;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.zzx.zzxaicode.ai.guardrail.PromptSafetyInputGuardrail;
 import com.zzx.zzxaicode.ai.tools.*;
 import com.zzx.zzxaicode.exception.BusinessException;
 import com.zzx.zzxaicode.exception.ErrorCode;
@@ -121,6 +122,8 @@ public class AiCodeGeneratorServiceFactory {
                         .hallucinatedToolNameStrategy(toolExecutionRequest -> ToolExecutionResultMessage.from(
                                 toolExecutionRequest, "Error: there is no tool called " + toolExecutionRequest.name()
                         ))
+                        // 添加输入合规性检查
+                        .inputGuardrails(new PromptSafetyInputGuardrail())
                         .build();
             }
             // HTML 和 多文件模式使用流式对话模型
@@ -131,6 +134,8 @@ public class AiCodeGeneratorServiceFactory {
                         .chatModel(chatModel)
                         .streamingChatModel(openAiStreamingChatModel)
                         .chatMemory(chatMemory)
+                        // 添加输入合规性检查
+                        .inputGuardrails(new PromptSafetyInputGuardrail())
                         .build();
             }
             default -> throw new BusinessException(ErrorCode.SYSTEM_ERROR,

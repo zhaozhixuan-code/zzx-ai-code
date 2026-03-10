@@ -3,6 +3,7 @@ package com.zzx.zzxaicode.ai;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.zzx.zzxaicode.ai.guardrail.PromptSafetyInputGuardrail;
+import com.zzx.zzxaicode.ai.guardrail.RetryOutputGuardrail;
 import com.zzx.zzxaicode.ai.tools.*;
 import com.zzx.zzxaicode.exception.BusinessException;
 import com.zzx.zzxaicode.exception.ErrorCode;
@@ -124,6 +125,8 @@ public class AiCodeGeneratorServiceFactory {
                         ))
                         // 添加输入合规性检查
                         .inputGuardrails(new PromptSafetyInputGuardrail())
+                        // 添加输出合规性检查 如果使用，则流式输出会失效
+                        // .outputGuardrails(new RetryOutputGuardrail())
                         .build();
             }
             // HTML 和 多文件模式使用流式对话模型
@@ -136,6 +139,8 @@ public class AiCodeGeneratorServiceFactory {
                         .chatMemory(chatMemory)
                         // 添加输入合规性检查
                         .inputGuardrails(new PromptSafetyInputGuardrail())
+                        // 添加输出合规性检查 如果使用，则流式输出会失效
+                        // .outputGuardrails(new RetryOutputGuardrail())
                         .build();
             }
             default -> throw new BusinessException(ErrorCode.SYSTEM_ERROR,

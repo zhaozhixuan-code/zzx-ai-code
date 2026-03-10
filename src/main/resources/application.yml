@@ -57,7 +57,7 @@ langchain4j:
       # 严格json
 #      strict-json-schema: true
 #      response-format: json-object
-      max-retries: 0 # 最大重试次数
+      max-retries: 3 # 最大重试次数
     # 流式
     streaming-chat-model:
       base-url: ${zzx-ai-code.langchain4j.open-ai.chat-model.base-url}

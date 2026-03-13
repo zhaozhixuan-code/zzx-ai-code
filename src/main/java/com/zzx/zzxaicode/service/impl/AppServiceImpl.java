@@ -32,6 +32,7 @@ import com.zzx.zzxaicode.service.ScreenshotService;
 import com.zzx.zzxaicode.service.UserService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Flux;
@@ -54,6 +55,8 @@ import java.util.stream.Collectors;
 @Slf4j
 public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppService {
 
+    @Value("${code.deploy-host}")
+    private String deployHost;
 
     // 用户服务
     @Resource
@@ -305,6 +308,8 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         boolean update = this.updateById(updateApp);
         ThrowUtils.throwIf(!update, ErrorCode.SYSTEM_ERROR, "更新应用信息失败");
         // 9. 得到可访问的 URL
+        // TODO 10. 构建应用访问 URL
+        // String appDeployUrl = String.format("%s/%s/", deployHost, deployKey);
         String appDeployUrl = AppConstant.CODE_DEPLOY_HOST + "/" + deployKey + "/";
         // 10. 异步生成封面截图并且更新封面
         generateAppScreenshot(appId, appDeployUrl);

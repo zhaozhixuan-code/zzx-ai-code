@@ -82,6 +82,7 @@ langchain4j:
       model-name: ${zzx-ai-code.langchain4j.open-ai.chat-model.model-name}
       log-requests: true
       log-responses: true
+      max-tokens: 100
 
 # 添加腾讯云 COS 对象存储配置
 cos:

@@ -2,7 +2,7 @@
 application-local.yml
 application-prod.yml
 tmp
-
+.log
 
 
 target/

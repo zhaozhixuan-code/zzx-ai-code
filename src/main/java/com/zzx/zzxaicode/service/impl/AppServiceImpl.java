@@ -26,6 +26,8 @@ import com.zzx.zzxaicode.mapper.AppMapper;
 import com.zzx.zzxaicode.model.po.User;
 import com.zzx.zzxaicode.model.vo.AppVO;
 import com.zzx.zzxaicode.model.vo.UserVO;
+import com.zzx.zzxaicode.monitor.MonitorContext;
+import com.zzx.zzxaicode.monitor.MonitorContextHolder;
 import com.zzx.zzxaicode.service.AppService;
 import com.zzx.zzxaicode.service.ChatHistoryService;
 import com.zzx.zzxaicode.service.ScreenshotService;
@@ -55,8 +57,9 @@ import java.util.stream.Collectors;
 @Slf4j
 public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppService {
 
-    @Value("${code.deploy-host}")
-    private String deployHost;
+    // TODO 线上取消注释
+    // @Value("${code.deploy-host}")
+    // private String deployHost;
 
     // 用户服务
     @Resource
@@ -95,24 +98,35 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
      */
     @Override
     public Flux<String> chatToGenCode(Long appId, String message, User loginUser) {
-        // 参数校验
+        // 1. 参数校验
         ThrowUtils.throwIf(appId == null || appId <= 0, ErrorCode.PARAMS_ERROR, "应用 ID 不能为空");
         ThrowUtils.throwIf(message == null || message.isEmpty(), ErrorCode.PARAMS_ERROR, "消息不能为空");
-        // 查询应用信息
+        // 2. 查询应用信息
         App app = this.getById(appId);
         ThrowUtils.throwIf(app == null, ErrorCode.NOT_FOUND_ERROR, "应用不存在");
-        // 验证用户是否有权限访问该应用，仅本人可以生成代码
+        // 3. 验证用户是否有权限访问该应用，仅本人可以生成代码
         ThrowUtils.throwIf(!loginUser.getId().equals(app.getUserId()), ErrorCode.NO_AUTH_ERROR, "无权限访问该应用");
-        // 获取应用的代码生成类型
+        // 4. 获取应用的代码生成类型
         String codeGenType = app.getCodeGenType();
         CodeGenTypeEnum genType = CodeGenTypeEnum.getEnumByValue(codeGenType);
         ThrowUtils.throwIf(genType == null, ErrorCode.PARAMS_ERROR, "代码生成类型不能为空");
-        // 把用户信息添加到对话历史
+        // 5. 把用户信息添加到对话历史
         chatHistoryService.addChatMessage(appId, message, ChatHistoryMessageTypeEnum.USER.getValue(), loginUser.getId());
-        // 调用 AI 生成代码（流式）
+        // 6. 设置监控上下文（用户 ID，和应用 ID）
+        MonitorContextHolder.setContext(
+                MonitorContext.builder()
+                        .userId(String.valueOf(loginUser.getId()))
+                        .appId(String.valueOf(appId))
+                        .build()
+        );
+        // 7. 调用 AI 生成代码（流式）
         Flux<String> codeStream = aiCodeGeneratorFacade.generateAndSaveCodeStream(message, genType, appId);
-        // 收集 AI 相应内容并在完成后添加到对话历史
-        return streamHandlerExecutor.doExecute(codeStream, chatHistoryService, appId, loginUser, genType);
+        // 8. 收集 AI 相应内容并在完成后添加到对话历史
+        return streamHandlerExecutor.doExecute(codeStream, chatHistoryService, appId, loginUser, genType)
+                .doFinally(signalType -> {
+                    // 流结束时清理，不论成功失败
+                    MonitorContextHolder.clearContext();
+                });
     }
 
 

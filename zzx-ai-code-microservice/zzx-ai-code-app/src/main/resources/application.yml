@@ -1,0 +1,85 @@
+spring:
+  application:
+    name: zzx-ai-code-app
+  profiles:
+    active: local
+  # mysql
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${zzx-ai-code.spring.datasource.host}:${zzx-ai-code.spring.datasource.port}/zzx_ai_code?serverTimezone=Asia/Shanghai&useUnicode=true&characterEncoding=utf-8&allowPublicKeyRetrieval=true&useSSL=false
+    username: ${zzx-ai-code.spring.datasource.username}
+    password: ${zzx-ai-code.spring.datasource.password}
+  session:
+    # session 配置
+    store-type: redis
+    # session 超时时间
+    timeout: 2592000
+  # redis
+  data:
+    redis:
+      host: ${zzx-ai-code.spring.data.redis.host}
+      port: ${zzx-ai-code.spring.data.redis.port}
+      password: ${zzx-ai-code.spring.data.redis.password}
+      timeout: 3000 # key - value 过期时间
+      ttl: 3600
+      database: 0
+server:
+  port: 8125
+  servlet:
+    context-path: /api
+    # cookie 30 天过期
+    session:
+      cookie:
+        max-age: 2592000
+
+# springdoc-openapi
+springdoc:
+  group-configs:
+    - group: 'default'
+      packages-to-scan: com.zzx.zzxaicode.controller
+# knife4j
+knife4j:
+  enable: true
+  setting:
+    language: zh_cn
+
+# AI
+langchain4j:
+  open-ai:
+    chat-model:
+      base-url: ${zzx-ai-code.langchain4j.open-ai.chat-model.base-url}
+      api-key: ${zzx-ai-code.langchain4j.open-ai.chat-model.api-key}
+      model-name: ${zzx-ai-code.langchain4j.open-ai.chat-model.model-name}
+      log-requests: true
+      log-responses: true
+      max-tokens: 8192 # 生成最大的token数
+      timeout: 180s # 超时时间设置为 180s
+      # 严格json
+      #      strict-json-schema: true
+      #      response-format: json-object
+      max-retries: 3 # 最大重试次数
+    # 流式
+    streaming-chat-model:
+      base-url: ${zzx-ai-code.langchain4j.open-ai.chat-model.base-url}
+      api-key: ${zzx-ai-code.langchain4j.open-ai.chat-model.api-key}
+      model-name: ${zzx-ai-code.langchain4j.open-ai.chat-model.model-name}
+      log-requests: true
+      log-responses: true
+      max-tokens: 8192 # 生成最大的token数
+    # 推理 AI 模型配置（用于复杂的推理任务）
+    reasoning-streaming-chat-model:
+      base-url: https://api.deepseek.com
+      api-key: ${zzx-ai-code.langchain4j.open-ai.chat-model.api-key}
+      model-name: ${zzx-ai-code.langchain4j.open-ai.chat-model.model-name}
+      max-tokens: 8192    # 默认使用最简单的模型 根据模型能力可修改32768
+      temperature: 0.1
+      log-requests: true
+      log-responses: true
+    # 智能路由 AI 模型配置（用于简单的分类任务）
+    routing-chat-model:
+      base-url: https://api.deepseek.com
+      api-key: ${zzx-ai-code.langchain4j.open-ai.chat-model.api-key}
+      model-name: ${zzx-ai-code.langchain4j.open-ai.chat-model.model-name}
+      log-requests: true
+      log-responses: true
+      max-tokens: 100

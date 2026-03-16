@@ -1,0 +1,24 @@
+spring:
+  application:
+    name: zzx-ai-code-screenshot
+  profiles:
+    active: local
+
+server:
+  port: 8127
+  servlet:
+    context-path: /api
+    # cookie 30 天过期
+    session:
+      cookie:
+        max-age: 2592000
+
+# 添加腾讯云 COS 对象存储配置
+cos:
+  client:
+    host: ${zzx-ai-code.cos.client.host}
+    secret-id: ${zzx-ai-code.cos.client.secret-id}
+    secret-key: ${zzx-ai-code.cos.client.secret-key}
+    bucket: ${zzx-ai-code.cos.client.bucket}
+    region: ${zzx-ai-code.cos.client.region}
+

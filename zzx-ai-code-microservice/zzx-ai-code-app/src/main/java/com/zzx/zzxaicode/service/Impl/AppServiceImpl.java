@@ -33,6 +33,7 @@ import com.zzx.zzxaicode.service.AppService;
 import com.zzx.zzxaicode.service.ChatHistoryService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.dubbo.config.annotation.DubboReference;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -61,8 +62,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
     // private String deployHost;
 
     // 用户服务
-    @Resource
-    @Lazy
+    @DubboReference
     private InnerUserService userService;
 
     // AI 生成代码门面类
@@ -82,8 +82,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
     private VueProjectBuilder vueProjectBuilder;
 
     // 截图服务
-    @Resource
-    @Lazy
+    @DubboReference
     private InnerScreenshotService screenshotService;
 
     @Resource

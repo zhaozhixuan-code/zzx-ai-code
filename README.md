@@ -22,3 +22,9 @@ nohup java -jar zzx-ai-code-0.0.1-SNAPSHOT.jar --spring.profiles.active=prod > a
 ```bash
 prometheus.exe --config.file=E:\javayvan\zzx-ai-code\prometheus.yml
 ```
+
+# Windows
+startup.cmd -m standalone
+
+# Linux / Mac
+sh startup.sh -m standalone

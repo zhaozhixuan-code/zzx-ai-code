@@ -1,14 +1,19 @@
 <template>
   <a-layout-footer class="footer">
     <div class="footer-content">
+      <div class="footer-main">
+        <div class="footer-brand">
+          <img class="footer-logo" src="@/assets/logo.png" alt="Logo" />
+          <span class="footer-title">AI 应用生成</span>
+        </div>
+        <div class="footer-links">
+          <a href="/" class="footer-link">首页</a>
+          <span class="footer-divider">|</span>
+          <a href="/user/login" class="footer-link">登录</a>
+        </div>
+      </div>
       <p class="copyright">
-        <a
-          target="_blank"
-          rel="noopener noreferrer"
-          class="author-link"
-        >
-          AI 无代码生成应用平台
-        </a>
+        © 2026 AI 无代码生成应用平台 · 让创意触手可及
       </p>
     </div>
   </a-layout-footer>
@@ -20,17 +25,68 @@
 
 <style scoped>
 .footer {
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(10px);
+  background: linear-gradient(180deg, #fafafa 0%, #fff 100%);
+  padding: 32px 24px 24px;
+  margin-top: auto;
+  border-top: 1px solid #f0f0f0;
+}
+
+.footer-content {
+  max-width: 1200px;
+  margin: 0 auto;
   text-align: center;
-  padding: 20px;
-  margin-top: 40px;
-  border-top: 1px solid rgba(102, 126, 234, 0.1);
+}
+
+.footer-main {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 16px;
+}
+
+.footer-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.footer-logo {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+}
+
+.footer-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+}
+
+.footer-links {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.footer-link {
+  font-size: 13px;
+  color: #666;
+  text-decoration: none;
+  transition: color 0.3s;
+}
+
+.footer-link:hover {
+  color: #1890ff;
+}
+
+.footer-divider {
+  color: #d9d9d9;
 }
 
 .copyright {
   margin: 0;
-  color: #666;
-  font-size: 14px;
+  font-size: 12px;
+  color: #999;
 }
 </style>

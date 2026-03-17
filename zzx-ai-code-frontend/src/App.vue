@@ -1,9 +1,24 @@
 <script setup lang="ts">
 import BasicLayout from '@/layouts/BasicLayout.vue'
+import LoginModal from '@/components/LoginModal.vue'
+import { useLoginUserStore } from '@/stores/loginUser'
+import { storeToRefs } from 'pinia'
+
+const loginUserStore = useLoginUserStore()
+const { loginModalVisible } = storeToRefs(loginUserStore)
+
+const handleLoginSuccess = () => {
+  // 登录成功后的逻辑
+}
 </script>
 
 <template>
   <BasicLayout />
+  <!-- 全局登录弹窗 -->
+  <LoginModal
+    v-model:visible="loginModalVisible"
+    @success="handleLoginSuccess"
+  />
 </template>
 
 <style>

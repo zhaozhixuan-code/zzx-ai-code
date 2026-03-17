@@ -38,11 +38,13 @@
 
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
-import { userRegister } from '@/api/userController.ts'
+import { userRegister } from '@/api/userController'
 import { message } from 'ant-design-vue'
 import { reactive } from 'vue'
+import { useLoginUserStore } from '@/stores/loginUser'
 
 const router = useRouter()
+const loginUserStore = useLoginUserStore()
 
 const formState = reactive<API.UserRegisterRequest>({
   userAccount: '',
@@ -70,13 +72,11 @@ const validateCheckPassword = (rule: unknown, value: string, callback: (error?: 
  */
 const handleSubmit = async (values: API.UserRegisterRequest) => {
   const res = await userRegister(values)
-  // 注册成功，跳转到登录页面
+  // 注册成功，打开登录弹窗
   if (res.data.code === 0) {
     message.success('注册成功')
-    router.push({
-      path: '/user/login',
-      replace: true,
-    })
+    // 打开登录弹窗，让用户登录
+    loginUserStore.openLoginModal()
   } else {
     message.error('注册失败，' + res.data.message)
   }

@@ -6,7 +6,7 @@
         <RouterLink to="/">
           <div class="header-left">
             <img class="logo" src="@/assets/logo.png" alt="Logo" />
-            <h1 class="site-title">应用生成</h1>
+            <h1 class="site-title">AI 应用生成</h1>
           </div>
         </RouterLink>
       </a-col>
@@ -22,15 +22,16 @@
       <!-- 右侧：用户操作区域 -->
       <a-col>
         <div class="user-login-status">
-          <div v-if="loginUserStore.loginUser.id">
+          <div v-if="loginUserStore.loginUser.id" class="user-info">
             <a-dropdown>
-              <a-space>
-                <a-avatar :src="loginUserStore.loginUser.userAvatar" />
-                {{ loginUserStore.loginUser.userName ?? '无名' }}
+              <a-space class="user-trigger">
+                <a-avatar :src="loginUserStore.loginUser.userAvatar" size="small" />
+                <span class="user-name">{{ loginUserStore.loginUser.userName ?? '无名' }}</span>
+                <DownOutlined />
               </a-space>
               <template #overlay>
                 <a-menu>
-                  <a-menu-item @click="doLogout">
+                  <a-menu-item key="logout" @click="doLogout">
                     <LogoutOutlined />
                     退出登录
                   </a-menu-item>
@@ -39,7 +40,9 @@
             </a-dropdown>
           </div>
           <div v-else>
-            <a-button type="primary" href="/user/login">登录</a-button>
+            <a-button type="primary" class="login-btn" @click="showLoginModal">
+              登录
+            </a-button>
           </div>
         </div>
       </a-col>
@@ -51,16 +54,22 @@
 import { computed, h, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { type MenuProps, message } from 'ant-design-vue'
-import { useLoginUserStore } from '@/stores/loginUser.ts'
-import { userLogout } from '@/api/userController.ts'
-import { LogoutOutlined, HomeOutlined } from '@ant-design/icons-vue'
+import { useLoginUserStore } from '@/stores/loginUser'
+import { userLogout } from '@/api/userController'
+import { LogoutOutlined, HomeOutlined, DownOutlined } from '@ant-design/icons-vue'
 
 const loginUserStore = useLoginUserStore()
 const router = useRouter()
+
+// 打开登录弹窗（使用全局状态）
+const showLoginModal = () => {
+  loginUserStore.openLoginModal()
+}
+
 // 当前选中菜单
 const selectedKeys = ref<string[]>(['/'])
 // 监听路由变化，更新当前选中菜单
-router.afterEach((to, from, next) => {
+router.afterEach((to) => {
   selectedKeys.value = [to.path]
 })
 
@@ -119,7 +128,6 @@ const doLogout = async () => {
       userName: '未登录',
     })
     message.success('退出登录成功')
-    await router.push('/user/login')
   } else {
     message.error('退出登录失败，' + res.data.message)
   }
@@ -129,27 +137,83 @@ const doLogout = async () => {
 <style scoped>
 .header {
   background: #fff;
-  padding: 0 24px;
+  padding: 0 32px;
+  height: 64px;
+  line-height: 64px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  position: sticky;
+  top: 0;
+  z-index: 100;
 }
 
 .header-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .logo {
-  height: 48px;
-  width: 48px;
+  height: 36px;
+  width: 36px;
+  border-radius: 8px;
 }
 
 .site-title {
   margin: 0;
   font-size: 18px;
-  color: #1890ff;
+  font-weight: 600;
+  color: #333;
+  letter-spacing: -0.5px;
 }
 
 .ant-menu-horizontal {
   border-bottom: none !important;
+  line-height: 62px;
+}
+
+.ant-menu-horizontal :deep(.ant-menu-item) {
+  height: 62px;
+  line-height: 62px;
+}
+
+.ant-menu-horizontal :deep(.ant-menu-item-selected) {
+  color: #1890ff;
+}
+
+.ant-menu-horizontal :deep(.ant-menu-item-selected)::after {
+  border-bottom-color: #1890ff;
+}
+
+.user-login-status {
+  display: flex;
+  align-items: center;
+}
+
+.user-info {
+  cursor: pointer;
+}
+
+.user-trigger {
+  padding: 4px 12px;
+  border-radius: 20px;
+  transition: all 0.3s;
+}
+
+.user-trigger:hover {
+  background: #f5f5f5;
+}
+
+.user-name {
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.login-btn {
+  height: 36px;
+  border-radius: 18px;
+  font-weight: 500;
+  padding: 0 20px;
 }
 </style>

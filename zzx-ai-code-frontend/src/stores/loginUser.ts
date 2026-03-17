@@ -11,6 +11,10 @@ export const useLoginUserStore = defineStore('loginUser', () => {
     userName: '未登录',
   })
 
+  // 全局登录弹窗状态
+  const loginModalVisible = ref(false)
+  const loginModalRedirect = ref('')
+
   // 获取登录用户信息
   async function fetchLoginUser() {
     const res = await getLoginUser()
@@ -24,5 +28,25 @@ export const useLoginUserStore = defineStore('loginUser', () => {
     loginUser.value = newLoginUser
   }
 
-  return { loginUser, fetchLoginUser, setLoginUser }
+  // 打开登录弹窗
+  function openLoginModal(redirect?: string) {
+    loginModalVisible.value = true
+    loginModalRedirect.value = redirect || ''
+  }
+
+  // 关闭登录弹窗
+  function closeLoginModal() {
+    loginModalVisible.value = false
+    loginModalRedirect.value = ''
+  }
+
+  return {
+    loginUser,
+    loginModalVisible,
+    loginModalRedirect,
+    fetchLoginUser,
+    setLoginUser,
+    openLoginModal,
+    closeLoginModal,
+  }
 })

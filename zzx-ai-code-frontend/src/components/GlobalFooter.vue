@@ -9,7 +9,7 @@
         <div class="footer-links">
           <a href="/" class="footer-link">首页</a>
           <span class="footer-divider">|</span>
-          <a href="/user/login" class="footer-link">登录</a>
+          <a class="footer-link" @click="handleLoginClick">登录</a>
         </div>
       </div>
       <p class="copyright">
@@ -20,7 +20,13 @@
 </template>
 
 <script setup lang="ts">
-// 无需额外的响应式数据
+import { useLoginUserStore } from '@/stores/loginUser'
+
+const loginUserStore = useLoginUserStore()
+
+const handleLoginClick = () => {
+  loginUserStore.openLoginModal()
+}
 </script>
 
 <style scoped>

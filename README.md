@@ -30,17 +30,17 @@
 
 ### 后端技术栈
 
-| 分类 | 技术 |
-|------|------|
-| **基础框架** | Spring Boot 3、Spring Cloud Alibaba |
+| 分类        | 技术 |
+|-----------|------|
+| **基础框架**  | Spring Boot 3、Spring Cloud Alibaba |
 | **微服务通信** | Dubbo、Nacos、Higress |
 | **AI 能力** | LangChain4j、LangGraph4j、Tool Calling、OpenAI、DeepSeek |
-| **数据层** | MyBatisFlex、MySQL |
-| **缓存** | Redis、Caffeine |
-| **文件存储** | 腾讯 COS 对象存储 |
-| **并发处理** | Redisson |
-| **工具库** | Selenium、jsoup、Lombok、HuTool |
-| **文档** | Knife4j + Swagger |
+| **数据层**   | MyBatisFlex、MySQL |
+| **缓存**    | Redis、Caffeine |
+| **文件存储**  | 腾讯 COS 对象存储 |
+| **限流控制**  | Redisson |
+| **工具库**   | Selenium、jsoup、Lombok、HuTool |
+| **文档**    | Knife4j + Swagger |
 
 ### 部署架构
 

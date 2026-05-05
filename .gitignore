@@ -3,7 +3,7 @@ application-local.yml
 application-prod.yml
 tmp
 .log
-
+AliyunJavaAgent/
 
 target/
 .mvn/wrapper/maven-wrapper.jar

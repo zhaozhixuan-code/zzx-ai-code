@@ -1,9 +1,9 @@
 <template>
-  <div class="markdown-content" v-html="renderedMarkdown"></div>
+  <div ref="markdownRoot" class="markdown-content" v-html="renderedMarkdown"></div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import MarkdownIt from 'markdown-it'
 import hljs from 'highlight.js'
 
@@ -15,6 +15,9 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+const markdownRoot = ref<HTMLElement>()
+const expandedCodeBlocks = new Set<number>()
+const COLLAPSED_CODE_LINE_COUNT = 12
 
 // 配置 markdown-it 实例
 const md: MarkdownIt = new MarkdownIt({
@@ -37,6 +40,52 @@ const md: MarkdownIt = new MarkdownIt({
     return '<pre class="hljs"><code>' + md.utils.escapeHtml(str) + '</code></pre>'
   },
 })
+
+/**
+ * 渲染代码围栏；长代码默认折叠，并按消息内代码块序号保留用户展开状态。
+ * @param tokens 当前 Markdown 的 token 列表。
+ * @param index 当前代码围栏 token 的位置。
+ * @returns 高亮后的代码 HTML，长代码外层包含原生可访问的折叠控件。
+ */
+md.renderer.rules.fence = (tokens, index) => {
+  const token = tokens[index]
+  const code = token.content
+  const lines = code.replace(/\n$/, '').split('\n').length
+  const language = md.utils.escapeHtml(token.info.trim().split(/\s+/, 1)[0] || '代码')
+  let highlighted = ''
+
+  if (token.info && hljs.getLanguage(token.info.trim().split(/\s+/, 1)[0])) {
+    try {
+      highlighted = hljs.highlight(code, {
+        language: token.info.trim().split(/\s+/, 1)[0],
+        ignoreIllegals: true,
+      }).value
+    } catch {
+      highlighted = md.utils.escapeHtml(code)
+    }
+  } else {
+    highlighted = md.utils.escapeHtml(code)
+  }
+
+  const codeHtml = `<pre class="hljs"><code>${highlighted}</code></pre>`
+  if (lines < COLLAPSED_CODE_LINE_COUNT) return codeHtml
+
+  const expanded = expandedCodeBlocks.has(index) ? ' open' : ''
+  return `<details class="code-fold" data-code-block="${index}"${expanded}><summary><span class="code-language">${language}</span><span class="code-line-count">${lines} 行</span><span class="code-fold-open">展开代码</span><span class="code-fold-close">收起代码</span></summary>${codeHtml}</details>`
+}
+
+/** 记录原生 details 的展开切换，使流式消息重绘后仍保持用户当前选择。 */
+function rememberCodeFoldState(event: Event): void {
+  const details = event.target
+  if (!(details instanceof HTMLDetailsElement) || !details.matches('.code-fold')) return
+  const index = Number(details.dataset.codeBlock)
+  if (!Number.isSafeInteger(index)) return
+  if (details.open) expandedCodeBlocks.add(index)
+  else expandedCodeBlocks.delete(index)
+}
+
+onMounted(() => markdownRoot.value?.addEventListener('toggle', rememberCodeFoldState, true))
+onUnmounted(() => markdownRoot.value?.removeEventListener('toggle', rememberCodeFoldState, true))
 
 // 计算渲染后的 Markdown
 const renderedMarkdown = computed(() => {
@@ -116,6 +165,72 @@ const renderedMarkdown = computed(() => {
   padding: 1em;
   overflow-x: auto;
   margin: 1em 0;
+}
+
+.markdown-content :deep(.code-fold) {
+  margin: 1em 0;
+  overflow: hidden;
+  border: 1px solid #e1e1e1;
+  border-radius: 6px;
+  background: #f8f8f8;
+}
+
+.markdown-content :deep(.code-fold summary) {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  color: #53655a;
+  cursor: pointer;
+  font-size: 12px;
+  list-style: none;
+}
+
+.markdown-content :deep(.code-fold summary::-webkit-details-marker) {
+  display: none;
+}
+
+.markdown-content :deep(.code-language) {
+  color: #354b3e;
+  font-weight: 600;
+}
+
+.markdown-content :deep(.code-line-count) {
+  color: #7c8981;
+  font-variant-numeric: tabular-nums;
+}
+
+.markdown-content :deep(.code-fold-open),
+.markdown-content :deep(.code-fold-close) {
+  margin-left: auto;
+  color: #315dd0;
+}
+
+.markdown-content :deep(.code-fold-close),
+.markdown-content :deep(.code-fold[open] .code-fold-open) {
+  display: none;
+}
+
+.markdown-content :deep(.code-fold[open] .code-fold-close) {
+  display: inline;
+}
+
+.markdown-content :deep(.code-fold summary:focus-visible) {
+  outline: 3px solid #a6bbef;
+  outline-offset: -3px;
+}
+
+.markdown-content :deep(.code-fold pre.hljs) {
+  margin: 0;
+  border: 0;
+  border-top: 1px solid #e1e1e1;
+  border-radius: 0;
+}
+
+.markdown-content :deep(.code-fold[open] pre.hljs) {
+  max-height: min(55vh, 480px);
+  overflow: auto;
 }
 
 .markdown-content :deep(pre code) {

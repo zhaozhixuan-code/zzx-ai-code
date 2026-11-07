@@ -12,7 +12,7 @@ import org.springframework.context.annotation.Configuration;
 /**
  * AI代码生成类型路由服务工厂
  *
- * @author yupi
+ * @author zhaozhixuan
  */
 @Slf4j
 @Configuration

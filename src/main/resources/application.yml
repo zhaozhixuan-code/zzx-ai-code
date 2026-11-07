@@ -44,9 +44,16 @@ knife4j:
     language: zh_cn
 
 # AI
+# DeepSeek API 模型名使用 deepseek-flash 或 deepseek-v4-pro，不能使用展示名称 DeepSeek-V4-Flash。
+# 当前 LangChain4j 适配不回传 reasoning_content；使用 reasoning-effort: none 关闭默认思考模式，兼容工具调用。
+# Brotli dec 0.1.2 在 Spring 预读首字节后批量读取时丢失剩余正文；显式请求原文，避免响应只剩下“{”。
+# 依赖缺陷：https://github.com/google/brotli/issues/1612
 langchain4j:
   open-ai:
     chat-model:
+      reasoning-effort: none
+      custom-headers:
+        Accept-Encoding: identity
       base-url: ${zzx-ai-code.langchain4j.open-ai.chat-model.base-url}
       api-key: ${zzx-ai-code.langchain4j.open-ai.chat-model.api-key}
       model-name: ${zzx-ai-code.langchain4j.open-ai.chat-model.model-name}
@@ -60,6 +67,9 @@ langchain4j:
       max-retries: 3 # 最大重试次数
     # 流式
     streaming-chat-model:
+      reasoning-effort: none
+      custom-headers:
+        Accept-Encoding: identity
       base-url: ${zzx-ai-code.langchain4j.open-ai.chat-model.base-url}
       api-key: ${zzx-ai-code.langchain4j.open-ai.chat-model.api-key}
       model-name: ${zzx-ai-code.langchain4j.open-ai.chat-model.model-name}
@@ -68,6 +78,9 @@ langchain4j:
       max-tokens: 8192 # 生成最大的token数
     # 推理 AI 模型配置（用于复杂的推理任务）
     reasoning-streaming-chat-model:
+      reasoning-effort: none
+      custom-headers:
+        Accept-Encoding: identity
       base-url: https://api.deepseek.com
       api-key: ${zzx-ai-code.langchain4j.open-ai.chat-model.api-key}
       model-name: ${zzx-ai-code.langchain4j.open-ai.chat-model.model-name}
@@ -77,6 +90,9 @@ langchain4j:
       log-responses: true
     # 智能路由 AI 模型配置（用于简单的分类任务）
     routing-chat-model:
+      reasoning-effort: none
+      custom-headers:
+        Accept-Encoding: identity
       base-url: https://api.deepseek.com
       api-key: ${zzx-ai-code.langchain4j.open-ai.chat-model.api-key}
       model-name: ${zzx-ai-code.langchain4j.open-ai.chat-model.model-name}

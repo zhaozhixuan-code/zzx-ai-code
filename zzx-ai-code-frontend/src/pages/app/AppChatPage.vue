@@ -276,6 +276,8 @@ const messages = ref<Message[]>([])
 const userInput = ref('')
 const isGenerating = ref(false)
 const messagesContainer = ref<HTMLElement>()
+let isChatPageActive = true
+let activeEventSource: EventSource | null = null
 
 // 对话历史相关
 const loadingHistory = ref(false)
@@ -323,7 +325,7 @@ const showAppDetail = () => {
 
 // 加载对话历史
 const loadChatHistory = async (isLoadMore = false) => {
-  if (!appId.value || loadingHistory.value) return
+  if (!isChatPageActive || !appId.value || loadingHistory.value) return
   loadingHistory.value = true
   try {
     const params: API.listAppChatHistoryParams = {
@@ -335,6 +337,7 @@ const loadChatHistory = async (isLoadMore = false) => {
       params.lastCreateTime = lastCreateTime.value
     }
     const res = await listAppChatHistory(params)
+    if (!isChatPageActive) return
     if (res.data.code === 0 && res.data.data) {
       const chatHistories = res.data.data.records || []
       if (chatHistories.length > 0) {
@@ -363,8 +366,10 @@ const loadChatHistory = async (isLoadMore = false) => {
       historyLoaded.value = true
     }
   } catch (error) {
-    console.error('加载对话历史失败：', error)
-    message.error('加载对话历史失败')
+    if (isChatPageActive) {
+      console.error('加载对话历史失败：', error)
+      message.error('加载对话历史失败')
+    }
   } finally {
     loadingHistory.value = false
   }
@@ -378,6 +383,7 @@ const loadMoreHistory = async () => {
 // 获取应用信息
 const fetchAppInfo = async () => {
   const id = route.params.id as string
+  if (!isChatPageActive) return
   if (!id) {
     message.error('应用ID不存在')
     router.push('/')
@@ -388,11 +394,13 @@ const fetchAppInfo = async () => {
 
   try {
     const res = await getAppVoById({ id: id as unknown as number })
+    if (!isChatPageActive || String(route.params.id) !== id) return
     if (res.data.code === 0 && res.data.data) {
       appInfo.value = res.data.data
 
       // 先加载对话历史
       await loadChatHistory()
+      if (!isChatPageActive || String(route.params.id) !== id) return
       // 如果有至少2条对话记录，展示对应的网站
       if (messages.value.length >= 2) {
         updatePreview()
@@ -412,6 +420,7 @@ const fetchAppInfo = async () => {
       router.push('/')
     }
   } catch (error) {
+    if (!isChatPageActive || String(route.params.id) !== id) return
     console.error('获取应用信息失败：', error)
     message.error('获取应用信息失败')
     router.push('/')
@@ -435,6 +444,7 @@ const sendInitialMessage = async (prompt: string) => {
   })
 
   await nextTick()
+  if (!isChatPageActive) return
   scrollToBottom()
 
   // 开始生成
@@ -485,6 +495,7 @@ const sendMessage = async () => {
   })
 
   await nextTick()
+  if (!isChatPageActive) return
   scrollToBottom()
 
   // 开始生成
@@ -513,12 +524,13 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
     eventSource = new EventSource(url, {
       withCredentials: true,
     })
+    activeEventSource = eventSource
 
     let fullContent = ''
 
     // 处理接收到的消息
     eventSource.onmessage = function (event) {
-      if (streamCompleted) return
+      if (!isChatPageActive || streamCompleted) return
 
       try {
         // 解析JSON包装的数据
@@ -540,11 +552,12 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
 
     // 处理done事件
     eventSource.addEventListener('done', function () {
-      if (streamCompleted) return
+      if (!isChatPageActive || streamCompleted) return
 
       streamCompleted = true
       isGenerating.value = false
       eventSource?.close()
+      if (activeEventSource === eventSource) activeEventSource = null
 
       // 延迟更新预览，确保后端已完成处理
       setTimeout(async () => {
@@ -555,7 +568,7 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
 
     // 处理business-error事件（后端限流等错误）
     eventSource.addEventListener('business-error', function (event: MessageEvent) {
-      if (streamCompleted) return
+      if (!isChatPageActive || streamCompleted) return
 
       try {
         const errorData = JSON.parse(event.data)
@@ -570,6 +583,7 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
         streamCompleted = true
         isGenerating.value = false
         eventSource?.close()
+        if (activeEventSource === eventSource) activeEventSource = null
       } catch (parseError) {
         console.error('解析错误事件失败:', parseError, '原始数据:', event.data)
         handleError(new Error('服务器返回错误'), aiMessageIndex)
@@ -578,12 +592,13 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
 
     // 处理错误
     eventSource.onerror = function () {
-      if (streamCompleted || !isGenerating.value) return
+      if (!isChatPageActive || streamCompleted || !isGenerating.value) return
       // 检查是否是正常的连接关闭
       if (eventSource?.readyState === EventSource.CONNECTING) {
         streamCompleted = true
         isGenerating.value = false
         eventSource?.close()
+        if (activeEventSource === eventSource) activeEventSource = null
 
         setTimeout(async () => {
           await fetchAppInfo()
@@ -601,6 +616,7 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
 
 // 错误处理函数
 const handleError = (error: unknown, aiMessageIndex: number) => {
+  if (!isChatPageActive) return
   console.error('生成代码失败：', error)
   messages.value[aiMessageIndex].content = '抱歉，生成过程中出现了错误，请重试。'
   messages.value[aiMessageIndex].loading = false
@@ -770,19 +786,27 @@ const getInputPlaceholder = () => {
   return '请描述你想生成的网站，越详细效果越好哦'
 }
 
+/** 转发预览 iframe 发来的编辑消息给当前应用对应的可视化编辑器。
+ * @param event 浏览器窗口收到的消息事件。
+ */
+function handleWindowMessage(event: MessageEvent): void {
+  visualEditor.handleIframeMessage(event)
+}
+
 // 页面加载时获取应用信息
 onMounted(() => {
   fetchAppInfo()
 
   // 监听 iframe 消息
-  window.addEventListener('message', (event) => {
-    visualEditor.handleIframeMessage(event)
-  })
+  window.addEventListener('message', handleWindowMessage)
 })
 
 // 清理资源
 onUnmounted(() => {
-  // EventSource 会在组件卸载时自动清理
+  isChatPageActive = false
+  activeEventSource?.close()
+  activeEventSource = null
+  window.removeEventListener('message', handleWindowMessage)
 })
 </script>
 

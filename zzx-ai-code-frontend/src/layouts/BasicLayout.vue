@@ -3,7 +3,7 @@
     <WorkspaceSidebar />
     <a-layout class="main-shell">
       <a-layout-content class="main-content">
-        <router-view />
+        <router-view :key="route.name === '应用对话' ? String(route.params.id) : undefined" />
       </a-layout-content>
       <GlobalFooter v-if="!isFullScreenWorkspace" />
     </a-layout>

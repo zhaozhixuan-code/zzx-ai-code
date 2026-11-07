@@ -25,6 +25,7 @@
               aria-label="描述你想创建的应用"
               aria-describedby="prompt-help prompt-feedback"
               :aria-invalid="!!promptError"
+              @input="resizePromptInput"
               @keydown="handlePromptKeydown"
               @compositionstart="isComposing = true"
               @compositionend="isComposing = false"
@@ -106,7 +107,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   ArrowUpOutlined,
@@ -142,6 +143,23 @@ const { currentExample, typedText, paused, reducedMotion, togglePaused } = useTy
 )
 const { projects, total, currentPage, pageSize, loading, error, reload, changePage } =
   useProjectCatalog(listDeployedApps)
+
+/** 根据提示词调整输入区高度；达到 CSS 高度上限后内部滚动，删除内容时自动收缩。 */
+function resizePromptInput(): void {
+  const input = promptInput.value
+  if (!input) return
+  // 先恢复自动高度，避免删除文字后 scrollHeight 仍受旧高度影响。
+  input.style.height = 'auto'
+  input.style.height = `${input.scrollHeight}px`
+}
+
+// 同时覆盖手动输入、Tab 填入示例，以及窗口宽度变化造成的自动换行。
+watch(userPrompt, resizePromptInput, { flush: 'post' })
+onMounted(() => {
+  resizePromptInput()
+  window.addEventListener('resize', resizePromptInput)
+})
+onUnmounted(() => window.removeEventListener('resize', resizePromptInput))
 
 /** 将当前完整示例填入空输入框并保留焦点，不覆盖用户已经输入的内容。 */
 function applyExample(): void {
@@ -270,7 +288,6 @@ async function createApp(): Promise<void> {
 
 .composer:focus-within {
   border-color: #7caa94;
-  box-shadow: 0 0 0 3px rgba(106, 157, 132, 0.12);
 }
 
 .composer.has-error {
@@ -312,7 +329,7 @@ async function createApp(): Promise<void> {
   display: block;
   width: 100%;
   min-height: 65px;
-  max-height: 220px;
+  max-height: min(240px, 40vh);
   padding: 4px 0;
   border: 0;
   border-radius: 3px;
@@ -322,12 +339,11 @@ async function createApp(): Promise<void> {
   font: inherit;
   font-size: 16px;
   line-height: 1.8;
-  resize: vertical;
-}
-
-.prompt-field textarea:focus-visible {
-  outline: 2px solid rgba(68, 127, 99, 0.38);
-  outline-offset: 4px;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #bdd1c5 transparent;
+  resize: none;
 }
 
 .typewriter-placeholder {

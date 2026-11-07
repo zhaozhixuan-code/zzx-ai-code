@@ -5,19 +5,29 @@
       <a-col flex="200px">
         <RouterLink to="/">
           <div class="header-left">
-            <img class="logo" src="@/assets/logo.png" alt="Logo" />
+            <img class="logo" src="@/assets/logo.png" alt="AI 应用生成" />
             <h1 class="site-title">AI 应用生成</h1>
           </div>
         </RouterLink>
       </a-col>
       <!-- 中间：导航菜单 -->
-      <a-col flex="auto">
+      <a-col flex="auto" class="desktop-nav">
         <a-menu
           v-model:selectedKeys="selectedKeys"
           mode="horizontal"
           :items="menuItems"
           @click="handleMenuClick"
         />
+      </a-col>
+      <a-col flex="none" class="mobile-nav">
+        <a-dropdown>
+          <a-button class="mobile-menu-button" aria-label="打开导航菜单" title="导航菜单">
+            <MenuOutlined />
+          </a-button>
+          <template #overlay>
+            <a-menu :items="menuItems" @click="handleMenuClick" />
+          </template>
+        </a-dropdown>
       </a-col>
       <!-- 右侧：用户操作区域 -->
       <a-col>
@@ -40,9 +50,7 @@
             </a-dropdown>
           </div>
           <div v-else>
-            <a-button type="primary" class="login-btn" @click="showLoginModal">
-              登录
-            </a-button>
+            <a-button type="primary" class="login-btn" @click="showLoginModal"> 登录 </a-button>
           </div>
         </div>
       </a-col>
@@ -56,7 +64,7 @@ import { useRouter } from 'vue-router'
 import { type MenuProps, message } from 'ant-design-vue'
 import { useLoginUserStore } from '@/stores/loginUser'
 import { userLogout } from '@/api/userController'
-import { LogoutOutlined, HomeOutlined, DownOutlined } from '@ant-design/icons-vue'
+import { LogoutOutlined, HomeOutlined, DownOutlined, MenuOutlined } from '@ant-design/icons-vue'
 
 const loginUserStore = useLoginUserStore()
 const router = useRouter()
@@ -90,7 +98,7 @@ const originItems = [
     key: '/admin/appManage',
     label: '应用管理',
     title: '应用管理',
-  }
+  },
 ]
 
 // 过滤菜单项
@@ -136,14 +144,14 @@ const doLogout = async () => {
 
 <style scoped>
 .header {
-  background: #fff;
-  padding: 0 32px;
-  height: 64px;
-  line-height: 64px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   position: sticky;
   top: 0;
   z-index: 100;
+  height: 64px;
+  padding: 0 30px;
+  border-bottom: 1px solid #e1e6ea;
+  background: #fff;
+  line-height: 64px;
 }
 
 .header-left {
@@ -153,35 +161,37 @@ const doLogout = async () => {
 }
 
 .logo {
-  height: 36px;
-  width: 36px;
-  border-radius: 8px;
+  width: 34px;
+  height: 34px;
+  border-radius: 7px;
+  object-fit: contain;
 }
 
 .site-title {
   margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: #333;
-  letter-spacing: -0.5px;
+  color: #1d2935;
+  font-size: 17px;
+  font-weight: 650;
 }
 
 .ant-menu-horizontal {
-  border-bottom: none !important;
+  border-bottom: 0;
   line-height: 62px;
 }
 
 .ant-menu-horizontal :deep(.ant-menu-item) {
   height: 62px;
   line-height: 62px;
+  color: #53616d;
 }
 
+.ant-menu-horizontal :deep(.ant-menu-item:hover),
 .ant-menu-horizontal :deep(.ant-menu-item-selected) {
-  color: #1890ff;
+  color: #2858c7;
 }
 
 .ant-menu-horizontal :deep(.ant-menu-item-selected)::after {
-  border-bottom-color: #1890ff;
+  border-bottom-color: #2858c7;
 }
 
 .user-login-status {
@@ -194,26 +204,79 @@ const doLogout = async () => {
 }
 
 .user-trigger {
-  padding: 4px 12px;
-  border-radius: 20px;
-  transition: all 0.3s;
+  padding: 4px 10px;
+  border-radius: 6px;
+  transition: background-color 150ms ease;
 }
 
 .user-trigger:hover {
-  background: #f5f5f5;
+  background: #f1f4f6;
 }
 
 .user-name {
-  max-width: 80px;
+  max-width: 112px;
   overflow: hidden;
+  color: #36434e;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .login-btn {
   height: 36px;
-  border-radius: 18px;
-  font-weight: 500;
-  padding: 0 20px;
+  padding: 0 16px;
+  border-radius: 6px;
+  background: #2858c7;
+  font-weight: 600;
+}
+
+.mobile-nav {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .header {
+    height: 58px;
+    padding: 0 16px;
+    line-height: 58px;
+  }
+
+  .logo {
+    width: 30px;
+    height: 30px;
+  }
+
+  .site-title {
+    font-size: 15px;
+  }
+
+  .desktop-nav {
+    display: none;
+  }
+
+  .mobile-nav {
+    display: flex;
+    align-items: center;
+  }
+
+  .mobile-menu-button {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border-color: #dce3e8;
+    border-radius: 6px;
+    color: #36434e;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .user-trigger {
+    transition: none;
+  }
+}
+
+@media (max-width: 420px) {
+  .header :deep(.user-name) {
+    display: none;
+  }
 }
 </style>

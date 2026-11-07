@@ -1,149 +1,352 @@
 <template>
-  <div class="app-card" :class="{ 'app-card--featured': featured }">
-    <div class="app-preview">
-      <img v-if="app.cover" :src="app.cover" :alt="app.appName" />
-      <div v-else class="app-placeholder">
-        <span>🤖</span>
+  <article class="app-card">
+    <component
+      :is="mode === 'public' && deployedUrl ? 'a' : RouterLink"
+      v-bind="previewLink"
+      class="app-preview"
+      :aria-label="
+        mode === 'public' ? `访问${app.appName || '应用'}网站` : `编辑${app.appName || '应用'}`
+      "
+    >
+      <img
+        v-if="app.cover && !coverFailed"
+        :src="app.cover"
+        :alt="`${app.appName || '应用'}页面预览`"
+        width="640"
+        height="400"
+        loading="lazy"
+        @error="coverFailed = true"
+      />
+      <div v-else class="app-placeholder" aria-hidden="true">
+        <div class="mini-browser">
+          <div class="mini-browser-bar"><i></i><i></i><i></i></div>
+          <div class="mini-browser-body">
+            <DesktopOutlined />
+            <span>{{ app.appName || '新应用' }}</span>
+            <div class="mini-browser-lines"><i></i><i></i></div>
+          </div>
+        </div>
       </div>
-      <div class="app-overlay">
-        <a-space>
-          <a-button type="primary" @click="handleViewChat">查看对话</a-button>
-          <a-button v-if="app.deployKey" type="default" @click="handleViewWork">查看作品</a-button>
-        </a-space>
-      </div>
-    </div>
+      <span class="project-status" :class="{ 'is-draft': !deployedUrl }">
+        <span aria-hidden="true"></span>{{ deployedUrl ? '已部署' : '草稿' }}
+      </span>
+    </component>
+
     <div class="app-info">
-      <div class="app-info-left">
-        <a-avatar :src="app.user?.userAvatar" :size="40">
-          {{ app.user?.userName?.charAt(0) || 'U' }}
-        </a-avatar>
+      <h3 class="app-title">
+        <component :is="mode === 'public' && deployedUrl ? 'a' : RouterLink" v-bind="previewLink">
+          {{ app.appName || '未命名应用' }}
+        </component>
+      </h3>
+      <div class="app-meta">
+        <span class="app-author">
+          <a-avatar :src="app.user?.userAvatar" :size="20" aria-hidden="true">
+            {{ app.user?.userName?.charAt(0) || 'U' }}
+          </a-avatar>
+          <span>{{ app.user?.userName || '创作者' }}</span>
+        </span>
+        <time v-if="displayDate" :datetime="projectDate">{{ displayDate }}</time>
       </div>
-      <div class="app-info-right">
-        <h3 class="app-title">{{ app.appName || '未命名应用' }}</h3>
-        <p class="app-author">
-          {{ app.user?.userName || (featured ? '官方' : '未知用户') }}
-        </p>
+      <div class="app-actions">
+        <RouterLink v-if="mode === 'personal'" :to="workspaceUrl" class="edit-link">
+          继续编辑<EditOutlined aria-hidden="true" />
+        </RouterLink>
+        <span v-else class="public-caption">打开应用，看看它的样子</span>
+        <a v-if="deployedUrl" :href="deployedUrl" target="_blank" rel="noopener noreferrer">
+          访问网站<ExportOutlined aria-hidden="true" />
+        </a>
       </div>
     </div>
-  </div>
+  </article>
 </template>
 
 <script setup lang="ts">
-interface Props {
-  app: API.AppVO
-  featured?: boolean
-}
+import { computed, ref, watch } from 'vue'
+import { RouterLink } from 'vue-router'
+import { DesktopOutlined, EditOutlined, ExportOutlined } from '@ant-design/icons-vue'
+import { getDeployUrl } from '@/config/env'
 
-interface Emits {
-  (e: 'view-chat', appId: string | number | undefined): void
-  (e: 'view-work', app: API.AppVO): void
-}
-
-const props = withDefaults(defineProps<Props>(), {
-  featured: false,
+const props = withDefaults(defineProps<{ app: API.AppVO; mode?: 'public' | 'personal' }>(), {
+  mode: 'personal',
+})
+const coverFailed = ref(false)
+const deployedUrl = computed(() =>
+  props.app.deployKey?.trim() ? getDeployUrl(props.app.deployKey) : '',
+)
+const workspaceUrl = computed(() => `/app/chat/${props.app.id}`)
+const previewLink = computed(() =>
+  props.mode === 'public' && deployedUrl.value
+    ? { href: deployedUrl.value, target: '_blank', rel: 'noopener noreferrer' }
+    : { to: workspaceUrl.value },
+)
+const projectDate = computed(() =>
+  props.mode === 'public' ? props.app.deployedTime : props.app.updateTime || props.app.createTime,
+)
+const displayDate = computed(() => {
+  if (!projectDate.value) return ''
+  const date = new Date(projectDate.value)
+  if (Number.isNaN(date.getTime())) return ''
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: 'short',
+    day: 'numeric',
+  }).format(date)
 })
 
-const emit = defineEmits<Emits>()
-
-const handleViewChat = () => {
-  emit('view-chat', props.app.id)
-}
-
-const handleViewWork = () => {
-  emit('view-work', props.app)
-}
+watch(
+  () => props.app.cover,
+  () => {
+    coverFailed.value = false
+  },
+)
 </script>
 
 <style scoped>
 .app-card {
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 16px;
+  min-width: 0;
   overflow: hidden;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid #e0e7e2;
+  border-radius: 10px;
+  background: #fff;
   transition:
-    transform 0.3s,
-    box-shadow 0.3s;
-  cursor: pointer;
+    border-color 150ms ease,
+    box-shadow 150ms ease;
 }
 
-.app-card:hover {
-  transform: translateY(-8px);
-  box-shadow: 0 15px 50px rgba(0, 0, 0, 0.25);
+.app-card:hover,
+.app-card:focus-within {
+  border-color: #adc6b8;
+  box-shadow: 0 6px 18px rgba(44, 73, 57, 0.06);
 }
 
 .app-preview {
-  height: 180px;
-  background: #f5f5f5;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
   position: relative;
+  display: block;
+  overflow: hidden;
+  aspect-ratio: 16 / 10;
+  border-bottom: 1px solid #e6ece7;
+  background: #edf3ef;
+  color: inherit;
+  text-decoration: none;
 }
 
 .app-preview img {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: top center;
 }
 
 .app-placeholder {
-  font-size: 48px;
-  color: #d9d9d9;
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  padding: 24px 30px 0;
+  background: #edf4ee;
 }
 
-.app-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+.mini-browser {
+  width: 100%;
+  align-self: end;
+  overflow: hidden;
+  border: 1px solid #d0ddd2;
+  border-bottom: 0;
+  border-radius: 7px 7px 0 0;
+  background: #fcfefd;
+  box-shadow: 0 6px 16px rgba(57, 88, 67, 0.06);
+}
+
+.mini-browser-bar {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0;
-  transition: opacity 0.3s;
+  gap: 4px;
+  padding: 9px 10px;
+  border-bottom: 1px solid #e6ece6;
 }
 
-.app-card:hover .app-overlay {
-  opacity: 1;
+.mini-browser-bar i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #c9d6cc;
+}
+
+.mini-browser-body {
+  display: flex;
+  min-height: 112px;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 15px;
+  color: #7f9b88;
+}
+
+.mini-browser-body > span {
+  display: -webkit-box;
+  max-width: 100%;
+  overflow: hidden;
+  color: #486552;
+  font-size: 12px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+}
+
+.mini-browser-body :deep(.anticon) {
+  font-size: 20px;
+}
+
+.mini-browser-lines {
+  display: flex;
+  width: 68%;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+
+.mini-browser-lines i {
+  width: 100%;
+  height: 4px;
+  border-radius: 3px;
+  background: #e3ece5;
+}
+
+.mini-browser-lines i:last-child {
+  width: 72%;
+}
+
+.project-status {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border: 1px solid #d7e7dc;
+  border-radius: 5px;
+  background: #f8fcf9;
+  color: #52765d;
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.project-status > span {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #6c9b76;
+}
+
+.project-status.is-draft {
+  border-color: #e3e4e5;
+  background: #fbfcfc;
+  color: #7d8783;
+}
+
+.project-status.is-draft > span {
+  background: #9ba69f;
 }
 
 .app-info {
-  padding: 16px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.app-info-left {
-  flex-shrink: 0;
-}
-
-.app-info-right {
-  flex: 1;
-  min-width: 0;
+  padding: 17px 17px 0;
 }
 
 .app-title {
-  font-size: 16px;
-  font-weight: 600;
-  margin: 0 0 4px;
-  color: #1a1a1a;
-  white-space: nowrap;
   overflow: hidden;
+  margin: 0 0 12px;
+  color: #2e4539;
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.5;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-title a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.app-title a:hover {
+  color: #2858c7;
+}
+
+.app-meta {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: #87948b;
+  font-size: 11px;
 }
 
 .app-author {
-  font-size: 14px;
-  color: #666;
-  margin: 0;
-  white-space: nowrap;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+}
+
+.app-author > span:last-child {
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-meta time {
+  flex: 0 0 auto;
+}
+
+.app-actions {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 14px;
+  border-top: 1px solid #edf0ed;
+  font-size: 11px;
+}
+
+.app-actions a {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 6px;
+  color: #2858c7;
+  text-decoration: none;
+}
+
+.app-actions a:hover {
+  color: #173c97;
+}
+
+.app-actions .edit-link {
+  color: #506d5b;
+}
+
+.public-caption {
+  overflow: hidden;
+  color: #8a998e;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-actions > a:last-child {
+  flex: 0 0 auto;
+}
+
+.app-card a:focus-visible {
+  outline: 3px solid #a6bbef;
+  outline-offset: -3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-card {
+    transition: none;
+  }
 }
 </style>

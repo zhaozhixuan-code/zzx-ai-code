@@ -8,6 +8,7 @@ import com.mybatisflex.core.query.QueryWrapper;
 import com.zzx.zzxaicode.annotation.AuthCheck;
 import com.zzx.zzxaicode.common.BaseResponse;
 import com.zzx.zzxaicode.common.DeleteRequest;
+import com.zzx.zzxaicode.common.PageRequest;
 import com.zzx.zzxaicode.common.ResultUtils;
 import com.zzx.zzxaicode.constants.AppConstant;
 import com.zzx.zzxaicode.constants.UserConstant;
@@ -263,6 +264,36 @@ public class AppController {
         // 数据封装
         Page<AppVO> appVOPage = new Page<>(pageNum, pageSize, appPage.getTotalRow());
         List<AppVO> appVOList = appService.getAppVOList(appPage.getRecords());
+        appVOPage.setRecords(appVOList);
+        return ResultUtils.success(appVOPage);
+    }
+
+    /**
+     * 公开分页展示所有已完成部署的应用，按最近部署时间排序。
+     *
+     * @param pageRequest 分页参数；页号至少为 1，每页 1 至 20 个应用
+     * @return 已部署应用及创建者的公开展示信息，不包含生成提示词
+     * @throws BusinessException 分页参数为空或超出范围时抛出参数错误
+     */
+    @PostMapping("/deployed/list/page/vo")
+    public BaseResponse<Page<AppVO>> listDeployedAppVOByPage(@RequestBody PageRequest pageRequest) {
+        ThrowUtils.throwIf(pageRequest == null, ErrorCode.PARAMS_ERROR);
+        int pageNum = pageRequest.getPageNum();
+        int pageSize = pageRequest.getPageSize();
+        ThrowUtils.throwIf(pageNum < 1 || pageSize < 1 || pageSize > 20,
+                ErrorCode.PARAMS_ERROR, "页号至少为 1，每页查询 1 至 20 个应用");
+
+        // 部署流程复制文件成功后会同时写入部署标识与时间；草稿和空标识不进入公开列表。
+        // 固定查询与排序，不接受用户、精选优先级或客户端排序条件。
+        QueryWrapper queryWrapper = QueryWrapper.create()
+                .where("deployKey IS NOT NULL AND TRIM(deployKey) <> '' AND deployedTime IS NOT NULL")
+                .orderBy("deployedTime", false)
+                .orderBy("id", false);
+        Page<App> appPage = appService.page(Page.of(pageNum, pageSize), queryWrapper);
+        Page<AppVO> appVOPage = new Page<>(pageNum, pageSize, appPage.getTotalRow());
+        List<AppVO> appVOList = appService.getAppVOList(appPage.getRecords());
+        // 首页仅展示项目元信息，不公开创建者的原始需求。
+        appVOList.forEach(appVO -> appVO.setInitPrompt(null));
         appVOPage.setRecords(appVOList);
         return ResultUtils.success(appVOPage);
     }

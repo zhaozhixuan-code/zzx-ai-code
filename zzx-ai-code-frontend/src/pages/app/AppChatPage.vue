@@ -38,10 +38,21 @@
 
     <!-- 主要内容区域 -->
     <div class="main-content">
-      <!-- 左侧对话区域 -->
+      <!-- 对话区域在桌面布局中位于右侧 -->
       <div class="chat-section">
+        <div class="chat-header">
+          <div class="chat-heading">
+            <MessageOutlined aria-hidden="true" />
+            <h2>生成对话</h2>
+          </div>
+          <span v-if="isGenerating" class="chat-status">正在生成</span>
+          <span v-else class="chat-hint">描述想调整的内容</span>
+        </div>
         <!-- 消息区域 -->
         <div class="messages-container" ref="messagesContainer">
+          <div v-if="messages.length === 0" class="conversation-empty">
+            <p>从一个具体需求开始，逐步完善页面。</p>
+          </div>
           <!-- 加载更多按钮 -->
           <div v-if="hasMoreHistory" class="load-more-container">
             <a-button type="link" @click="loadMoreHistory" :loading="loadingHistory" size="small">
@@ -117,6 +128,7 @@
                 :placeholder="getInputPlaceholder()"
                 :rows="4"
                 :maxlength="1000"
+                aria-label="描述希望生成或修改的内容"
                 @keydown.enter.prevent="sendMessage"
                 :disabled="isGenerating || !isOwner"
               />
@@ -127,6 +139,7 @@
               :placeholder="getInputPlaceholder()"
               :rows="4"
               :maxlength="1000"
+              aria-label="描述希望生成或修改的内容"
               @keydown.enter.prevent="sendMessage"
               :disabled="isGenerating"
             />
@@ -136,19 +149,20 @@
                 @click="sendMessage"
                 :loading="isGenerating"
                 :disabled="!isOwner"
+                aria-label="发送消息"
               >
                 <template #icon>
-                  <SendOutlined />
+                  <SendOutlined aria-hidden="true" />
                 </template>
               </a-button>
             </div>
           </div>
         </div>
       </div>
-      <!-- 右侧网页展示区域 -->
+      <!-- 预览区域在桌面布局中位于左侧 -->
       <div class="preview-section">
         <div class="preview-header">
-          <h3>生成后的网页展示</h3>
+          <h2>页面预览</h2>
           <div class="preview-actions">
             <a-button
               v-if="isOwner && previewUrl"
@@ -159,13 +173,13 @@
               style="padding: 0; height: auto; margin-right: 12px"
             >
               <template #icon>
-                <EditOutlined />
+                <EditOutlined aria-hidden="true" />
               </template>
               {{ isEditMode ? '退出编辑' : '编辑模式' }}
             </a-button>
             <a-button v-if="previewUrl" type="link" @click="openInNewTab">
               <template #icon>
-                <ExportOutlined />
+                <ExportOutlined aria-hidden="true" />
               </template>
               新窗口打开
             </a-button>
@@ -173,8 +187,8 @@
         </div>
         <div class="preview-content">
           <div v-if="!previewUrl && !isGenerating" class="preview-placeholder">
-            <div class="placeholder-icon">🌐</div>
-            <p>网站文件生成完成后将在这里展示</p>
+            <DesktopOutlined class="placeholder-icon" aria-hidden="true" />
+            <p>生成完成后，页面会显示在这里</p>
           </div>
           <div v-else-if="isGenerating" class="preview-loading">
             <a-spin size="large" />
@@ -184,6 +198,7 @@
             v-else
             :src="previewUrl"
             class="preview-iframe"
+            title="生成的网站预览"
             frameborder="0"
             @load="onIframeLoad"
           ></iframe>
@@ -237,6 +252,8 @@ import {
   InfoCircleOutlined,
   DownloadOutlined,
   EditOutlined,
+  DesktopOutlined,
+  MessageOutlined,
 } from '@ant-design/icons-vue'
 
 const route = useRoute()
@@ -771,67 +788,152 @@ onUnmounted(() => {
 
 <style scoped>
 #appChatPage {
-  height: 100vh;
   display: flex;
+  height: 100vh;
+  min-height: 0;
   flex-direction: column;
-  padding: 16px;
-  background: #fdfdfd;
+  padding: 0 14px 14px;
+  background: #f3f5f7;
+  color: #1d2935;
 }
 
-/* 顶部栏 */
 .header-bar {
   display: flex;
+  min-height: 62px;
+  flex: 0 0 62px;
+  align-items: center;
   justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
+  gap: 16px;
+  padding: 0 8px;
+  border-bottom: 1px solid #e0e5e9;
 }
 
-.header-left {
+.header-left,
+.header-right {
   display: flex;
+  min-width: 0;
   align-items: center;
-  gap: 12px;
-}
-
-.code-gen-type-tag {
-  font-size: 12px;
+  gap: 10px;
 }
 
 .app-name {
+  overflow: hidden;
   margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: #1a1a1a;
+  color: #1d2935;
+  font-size: 17px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.header-right {
-  display: flex;
-  gap: 12px;
+.code-gen-type-tag {
+  flex: 0 0 auto;
+  border-color: #d8e1ee;
+  border-radius: 4px;
+  background: #edf2f8;
+  color: #425d85;
+  font-size: 12px;
 }
 
-/* 主要内容区域 */
+.header-right :deep(.ant-btn) {
+  height: 34px;
+  border-radius: 5px;
+  font-size: 13px;
+}
+
 .main-content {
-  flex: 1;
   display: flex;
-  gap: 16px;
-  padding: 8px;
+  min-height: 0;
+  flex: 1;
+  gap: 12px;
+  padding-top: 12px;
   overflow: hidden;
 }
 
-/* 左侧对话区域 */
+.preview-section,
 .chat-section {
-  flex: 2;
   display: flex;
+  min-height: 0;
   flex-direction: column;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   overflow: hidden;
+  border: 1px solid #dfe4e8;
+  border-radius: 7px;
+  background: #fff;
+}
+
+.preview-section {
+  order: 1;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.chat-section {
+  order: 2;
+  min-width: 340px;
+  max-width: 520px;
+  flex: 0 0 38%;
+}
+
+.preview-header,
+.chat-header {
+  display: flex;
+  min-height: 52px;
+  flex: 0 0 52px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 15px;
+  border-bottom: 1px solid #e5e9ec;
+}
+
+.preview-header h2,
+.chat-heading h2 {
+  margin: 0;
+  color: #293744;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.preview-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.preview-actions :deep(.ant-btn) {
+  height: 30px;
+  padding: 0 7px;
+  color: #435f91;
+  font-size: 12px;
+}
+
+.chat-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #5572a8;
+}
+
+.chat-heading :deep(.anticon) {
+  font-size: 15px;
+}
+
+.chat-status,
+.chat-hint {
+  color: #7c8994;
+  font-size: 12px;
+}
+
+.chat-status {
+  color: #2858c7;
 }
 
 .messages-container {
-  flex: 0.9;
-  padding: 16px;
+  min-height: 0;
+  flex: 1;
+  padding: 16px 14px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   scroll-behavior: smooth;
 }
 
@@ -839,244 +941,300 @@ onUnmounted(() => {
   margin-bottom: 12px;
 }
 
-.user-message {
+.user-message,
+.ai-message {
   display: flex;
-  justify-content: flex-end;
   align-items: flex-start;
   gap: 8px;
+}
+
+.user-message {
+  justify-content: flex-end;
 }
 
 .ai-message {
-  display: flex;
   justify-content: flex-start;
-  align-items: flex-start;
-  gap: 8px;
 }
 
 .message-content {
-  max-width: 70%;
-  padding: 12px 16px;
-  border-radius: 12px;
-  line-height: 1.5;
-  word-wrap: break-word;
+  max-width: 86%;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid #e2e7eb;
+  border-radius: 7px;
+  color: #33414d;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
 }
 
 .user-message .message-content {
-  background: #1890ff;
-  color: white;
+  border-color: #2858c7;
+  background: #2858c7;
+  color: #fff;
 }
 
 .ai-message .message-content {
-  background: #f5f5f5;
-  color: #1a1a1a;
-  padding: 8px 12px;
+  background: #f5f7f8;
 }
 
 .message-avatar {
-  flex-shrink: 0;
+  flex: 0 0 auto;
 }
 
 .loading-indicator {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #666;
+  color: #667480;
 }
 
-/* 加载更多按钮 */
-.load-more-container {
+.conversation-empty {
+  display: grid;
+  min-height: 100%;
+  place-items: center;
+  padding: 20px;
+  color: #7b8791;
   text-align: center;
-  padding: 8px 0;
-  margin-bottom: 16px;
 }
 
-/* 输入区域 */
+.conversation-empty p {
+  max-width: 220px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.load-more-container {
+  margin-bottom: 14px;
+  text-align: center;
+}
+
 .input-container {
-  padding: 16px;
-  background: white;
+  flex: 0 0 auto;
+  padding: 12px;
+  border-top: 1px solid #e5e9ec;
+  background: #fff;
 }
 
 .input-wrapper {
   position: relative;
 }
 
-.input-wrapper .ant-input {
-  padding-right: 50px;
+.input-wrapper :deep(.ant-input) {
+  min-height: 96px;
+  padding: 10px 46px 34px 11px;
+  border-color: #dce3e8;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.input-wrapper :deep(.ant-input:focus),
+.input-wrapper :deep(.ant-input-focused) {
+  border-color: #7592cf;
+  box-shadow: 0 0 0 2px rgba(40, 88, 199, 0.1);
 }
 
 .input-actions {
   position: absolute;
-  bottom: 8px;
   right: 8px;
+  bottom: 8px;
 }
 
-/* 右侧预览区域 */
-.preview-section {
-  flex: 3;
-  display: flex;
-  flex-direction: column;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
-}
-
-.preview-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px;
-  border-bottom: 1px solid #e8e8e8;
-}
-
-.preview-header h3 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.preview-actions {
-  display: flex;
-  gap: 8px;
+.input-actions :deep(.ant-btn) {
+  width: 32px;
+  height: 32px;
+  border-radius: 5px;
+  background: #2858c7;
 }
 
 .preview-content {
-  flex: 1;
   position: relative;
+  min-height: 0;
+  flex: 1;
   overflow: hidden;
+  background: #f0f2f4;
 }
 
-.preview-placeholder {
+.preview-placeholder,
+.preview-loading {
   display: flex;
+  height: 100%;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 100%;
-  color: #666;
+  gap: 12px;
+  padding: 20px;
+  color: #73808b;
+  text-align: center;
+}
+
+.preview-placeholder p,
+.preview-loading p {
+  margin: 0;
+  font-size: 13px;
 }
 
 .placeholder-icon {
-  font-size: 48px;
-  margin-bottom: 16px;
-}
-
-.preview-loading {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  color: #666;
-}
-
-.preview-loading p {
-  margin-top: 16px;
+  color: #6882b7;
+  font-size: 30px;
 }
 
 .preview-iframe {
+  display: block;
   width: 100%;
   height: 100%;
-  border: none;
+  border: 0;
+  background: #fff;
 }
 
 .selected-element-alert {
-  margin: 0 16px;
+  margin: 0 12px 10px;
+  border-radius: 6px;
 }
 
-/* 响应式设计 */
+.selected-element-info {
+  max-width: 100%;
+  line-height: 1.5;
+}
+
+.element-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 7px;
+}
+
+.element-tag {
+  color: #2858c7;
+  font-weight: 600;
+}
+
+.element-id {
+  color: #42785c;
+}
+
+.element-class {
+  color: #a45e42;
+}
+
+.element-details {
+  display: grid;
+  gap: 5px;
+  color: #586671;
+}
+
+.element-item {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+.element-selector-code {
+  padding: 2px 5px;
+  border: 1px solid #dce3e8;
+  border-radius: 3px;
+  background: #f3f5f6;
+  color: #76524a;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.edit-mode-active {
+  color: #35684b !important;
+}
+
 @media (max-width: 1024px) {
   .main-content {
     flex-direction: column;
+    gap: 10px;
   }
 
-  .chat-section,
-  .preview-section {
-    flex: none;
-    height: 50vh;
+  .preview-section,
+  .chat-section {
+    min-height: 0;
+    max-width: none;
+    flex: 1 1 50%;
+  }
+
+  .chat-section {
+    min-width: 0;
   }
 }
 
-@media (max-width: 768px) {
-  .header-bar {
-    padding: 12px 16px;
+@media (max-width: 760px) {
+  #appChatPage {
+    height: calc(100vh - 150px);
+    min-height: 520px;
+    padding: 0 8px 8px;
   }
 
-  .app-name {
-    font-size: 16px;
+  .header-bar {
+    min-height: 58px;
+    flex-basis: auto;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 2px;
+  }
+
+  .header-left {
+    flex: 1 1 100%;
+  }
+
+  .header-right {
+    width: 100%;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+
+  .header-right :deep(.ant-btn) {
+    height: 30px;
+    padding: 0 7px;
+    font-size: 12px;
   }
 
   .main-content {
-    padding: 8px;
-    gap: 8px;
+    padding-top: 8px;
+  }
+
+  .preview-section,
+  .chat-section {
+    flex-basis: 50%;
+  }
+
+  .preview-header,
+  .chat-header {
+    min-height: 46px;
+    flex-basis: 46px;
+    padding: 0 10px;
+  }
+
+  .preview-actions {
+    gap: 2px;
+  }
+
+  .preview-actions :deep(.ant-btn) {
+    padding: 0 4px;
+    font-size: 11px;
+  }
+
+  .messages-container {
+    padding: 12px 9px;
   }
 
   .message-content {
-    max-width: 85%;
+    max-width: 90%;
+    padding: 9px 10px;
   }
 
-  /* 选中元素信息样式 */
-  .selected-element-alert {
-    margin: 0 16px;
+  .input-container {
+    padding: 9px;
   }
+}
 
-  .selected-element-info {
-    line-height: 1.4;
-  }
-
-  .element-header {
-    margin-bottom: 8px;
-  }
-
-  .element-details {
-    margin-top: 8px;
-  }
-
-  .element-item {
-    margin-bottom: 4px;
-    font-size: 13px;
-  }
-
-  .element-item:last-child {
-    margin-bottom: 0;
-  }
-
-  .element-tag {
-    font-family: 'Monaco', 'Menlo', monospace;
-    font-size: 14px;
-    font-weight: 600;
-    color: #007bff;
-  }
-
-  .element-id {
-    color: #28a745;
-    margin-left: 4px;
-  }
-
-  .element-class {
-    color: #ffc107;
-    margin-left: 4px;
-  }
-
-  .element-selector-code {
-    font-family: 'Monaco', 'Menlo', monospace;
-    background: #f6f8fa;
-    padding: 2px 4px;
-    border-radius: 3px;
-    font-size: 12px;
-    color: #d73a49;
-    border: 1px solid #e1e4e8;
-  }
-
-  /* 编辑模式按钮样式 */
-  .edit-mode-active {
-    background-color: #52c41a !important;
-    border-color: #52c41a !important;
-    color: white !important;
-  }
-
-  .edit-mode-active:hover {
-    background-color: #73d13d !important;
-    border-color: #73d13d !important;
+@media (prefers-reduced-motion: reduce) {
+  .messages-container {
+    scroll-behavior: auto;
   }
 }
 </style>

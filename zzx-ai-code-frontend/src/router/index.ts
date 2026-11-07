@@ -6,6 +6,7 @@ import UserManagePage from '@/pages/admin/UserManagePage.vue'
 import AppManagePage from '@/pages/admin/AppManagePage.vue'
 import AppChatPage from '@/pages/app/AppChatPage.vue'
 import AppEditPage from '@/pages/app/AppEditPage.vue'
+import MyProjectsPage from '@/pages/app/MyProjectsPage.vue'
 import ChatManagePage from '@/pages/admin/ChatManagePage.vue'
 
 const router = createRouter({
@@ -15,6 +16,11 @@ const router = createRouter({
       path: '/',
       name: '主页',
       component: HomePage,
+    },
+    {
+      path: '/my-projects',
+      name: '我的项目',
+      component: MyProjectsPage,
     },
     {
       path: '/user/login',
@@ -40,6 +46,7 @@ const router = createRouter({
       path: '/app/chat/:id',
       name: '应用对话',
       component: AppChatPage,
+      meta: { fullScreen: true },
     },
     {
       path: '/app/edit/:id',
@@ -52,6 +59,22 @@ const router = createRouter({
       component: ChatManagePage,
     },
   ],
+  /**
+   * Restore saved scroll positions or reveal a section linked from the workspace sidebar.
+   * @param to The destination route.
+   * @param _from The route being left.
+   * @param savedPosition A browser-restored scroll position, when available.
+   * @returns The scroll position or anchor options selected for the destination.
+   */
+  scrollBehavior(to, _from, savedPosition) {
+    if (savedPosition) {
+      return savedPosition
+    }
+    if (to.hash) {
+      return { el: to.hash, behavior: 'smooth' }
+    }
+    return { top: 0 }
+  },
 })
 
 export default router

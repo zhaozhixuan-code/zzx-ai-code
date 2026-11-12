@@ -3,6 +3,7 @@ import BasicLayout from '@/layouts/BasicLayout.vue'
 import LoginModal from '@/components/LoginModal.vue'
 import { useLoginUserStore } from '@/stores/loginUser'
 import { storeToRefs } from 'pinia'
+import { appTheme } from '@/styles/theme'
 
 const loginUserStore = useLoginUserStore()
 const { loginModalVisible } = storeToRefs(loginUserStore)
@@ -13,12 +14,11 @@ const handleLoginSuccess = () => {
 </script>
 
 <template>
-  <BasicLayout />
-  <!-- 全局登录弹窗 -->
-  <LoginModal
-    v-model:visible="loginModalVisible"
-    @success="handleLoginSuccess"
-  />
+  <a-config-provider :theme="appTheme">
+    <BasicLayout />
+    <!-- 全局登录弹窗也使用工作区主题。 -->
+    <LoginModal v-model:visible="loginModalVisible" @success="handleLoginSuccess" />
+  </a-config-provider>
 </template>
 
 <style>
@@ -30,9 +30,7 @@ const handleLoginSuccess = () => {
 body {
   margin: 0;
   padding: 0;
-  font-family:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell',
-    'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  font-family: var(--font-ui);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;

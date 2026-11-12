@@ -25,7 +25,7 @@ const isFullScreenWorkspace = computed(() => route.meta.fullScreen === true)
   display: flex;
   flex-direction: row;
   min-height: 100vh;
-  background: #fff;
+  background: var(--color-page);
 }
 
 .main-shell {
@@ -33,7 +33,7 @@ const isFullScreenWorkspace = computed(() => route.meta.fullScreen === true)
   min-height: 100vh;
   flex: 1;
   flex-direction: column;
-  background: #fff;
+  background: var(--color-page);
 }
 
 .main-content {
@@ -42,7 +42,7 @@ const isFullScreenWorkspace = computed(() => route.meta.fullScreen === true)
   flex: 1;
   width: 100%;
   padding: 0;
-  background: #fff;
+  background: var(--color-page);
   margin: 0;
 }
 

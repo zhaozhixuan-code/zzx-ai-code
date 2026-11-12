@@ -31,10 +31,10 @@ const handleLoginClick = () => {
 
 <style scoped>
 .footer {
-  background: linear-gradient(180deg, #fafafa 0%, #fff 100%);
+  background: var(--color-page);
   padding: 32px 24px 24px;
   margin-top: auto;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--color-border);
 }
 
 .footer-content {
@@ -66,7 +66,7 @@ const handleLoginClick = () => {
 .footer-title {
   font-size: 14px;
   font-weight: 500;
-  color: #333;
+  color: var(--color-text);
 }
 
 .footer-links {
@@ -77,22 +77,22 @@ const handleLoginClick = () => {
 
 .footer-link {
   font-size: 13px;
-  color: #666;
+  color: var(--color-text-secondary);
   text-decoration: none;
   transition: color 0.3s;
 }
 
 .footer-link:hover {
-  color: #1890ff;
+  color: var(--color-primary);
 }
 
 .footer-divider {
-  color: #d9d9d9;
+  color: var(--color-border-strong);
 }
 
 .copyright {
   margin: 0;
   font-size: 12px;
-  color: #999;
+  color: var(--color-text-muted);
 }
 </style>

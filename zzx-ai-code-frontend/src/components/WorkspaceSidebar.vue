@@ -193,8 +193,8 @@ watch([() => loginUserStore.loginUser.id, () => route.params.id], () => void loa
   flex-direction: column;
   gap: 10px;
   padding: 20px 14px 12px;
-  border-right: 1px solid #e0e5e9;
-  background: #f7f8f9;
+  border-right: 1px solid var(--color-border);
+  background: var(--color-sidebar);
 }
 
 .sidebar-brand {
@@ -203,7 +203,7 @@ watch([() => loginUserStore.loginUser.id, () => route.params.id], () => void loa
   align-items: center;
   gap: 10px;
   padding: 0 8px;
-  color: #1d2935;
+  color: var(--color-text);
   font-size: 15px;
   font-weight: 650;
   text-decoration: none;
@@ -221,10 +221,10 @@ watch([() => loginUserStore.loginUser.id, () => route.params.id], () => void loa
   gap: 9px;
   margin-top: 8px;
   padding: 0 12px;
-  border: 1px solid #cdd7e1;
-  border-radius: 6px;
-  background: #fff;
-  color: #263847;
+  border: 1px solid var(--color-primary);
+  border-radius: 8px;
+  background: var(--color-primary);
+  color: var(--color-surface);
   font-size: 14px;
   font-weight: 600;
   text-decoration: none;
@@ -234,9 +234,9 @@ watch([() => loginUserStore.loginUser.id, () => route.params.id], () => void loa
 }
 
 .new-project-link:hover {
-  border-color: #9aaec7;
-  background: #fcfdfe;
-  color: #1e469f;
+  border-color: var(--color-primary-hover);
+  background: var(--color-primary-hover);
+  color: var(--color-surface);
 }
 
 .primary-nav,
@@ -256,8 +256,8 @@ watch([() => loginUserStore.loginUser.id, () => route.params.id], () => void loa
   align-items: center;
   gap: 11px;
   padding: 0 11px;
-  border-radius: 5px;
-  color: #52606c;
+  border-radius: 8px;
+  color: var(--color-text-secondary);
   font-size: 14px;
   text-decoration: none;
   transition:
@@ -266,24 +266,25 @@ watch([() => loginUserStore.loginUser.id, () => route.params.id], () => void loa
 }
 
 .nav-link :deep(.anticon) {
-  color: #73808b;
+  color: var(--color-text-muted);
   font-size: 16px;
 }
 
 .nav-link:hover {
-  background: #edf0f2;
-  color: #263847;
+  background: var(--color-surface-muted);
+  color: var(--color-text);
 }
 
 .nav-link-active,
 .nav-link-active:hover {
-  background: #e8edf4;
-  color: #1d416f;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  box-shadow: inset 3px 0 0 var(--color-primary);
   font-weight: 600;
 }
 
 .nav-link-active :deep(.anticon) {
-  color: #2858c7;
+  color: var(--color-primary);
 }
 
 .recent-section {
@@ -297,7 +298,7 @@ watch([() => loginUserStore.loginUser.id, () => route.params.id], () => void loa
   align-items: center;
   justify-content: space-between;
   padding: 9px 10px 7px;
-  color: #78848e;
+  color: var(--color-text-muted);
 }
 
 .section-heading h2 {
@@ -324,19 +325,19 @@ watch([() => loginUserStore.loginUser.id, () => route.params.id], () => void loa
   gap: 9px;
   padding: 0 10px;
   border-radius: 5px;
-  color: #56636e;
+  color: var(--color-text-secondary);
   font-size: 13px;
   text-decoration: none;
 }
 
 .recent-link:hover {
-  background: #edf0f2;
-  color: #263847;
+  background: var(--color-surface-muted);
+  color: var(--color-text);
 }
 
 .recent-link-active {
-  background: #e9edf2;
-  color: #1d2935;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
   font-weight: 600;
 }
 
@@ -344,13 +345,13 @@ watch([() => loginUserStore.loginUser.id, () => route.params.id], () => void loa
   width: 7px;
   height: 7px;
   flex: 0 0 auto;
-  border: 1.5px solid #87939d;
+  border: 1.5px solid var(--color-text-muted);
   border-radius: 2px;
 }
 
 .recent-link-active .recent-mark {
-  border-color: #2858c7;
-  background: #2858c7;
+  border-color: var(--color-primary);
+  background: var(--color-primary);
 }
 
 .recent-name {
@@ -362,19 +363,19 @@ watch([() => loginUserStore.loginUser.id, () => route.params.id], () => void loa
 
 .recent-empty {
   margin: 2px 10px;
-  color: #87939d;
+  color: var(--color-text-muted);
   font-size: 12px;
 }
 
 .admin-nav {
   padding-top: 10px;
-  border-top: 1px solid #e2e6e9;
+  border-top: 1px solid var(--color-border);
 }
 
 .account-area {
   margin-top: auto;
   padding-top: 10px;
-  border-top: 1px solid #e2e6e9;
+  border-top: 1px solid var(--color-border);
 }
 
 .account-control {
@@ -387,14 +388,14 @@ watch([() => loginUserStore.loginUser.id, () => route.params.id], () => void loa
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: #36434e;
+  color: var(--color-text);
   cursor: pointer;
   font: inherit;
   text-align: left;
 }
 
 .account-control:hover {
-  background: #edf0f2;
+  background: var(--color-surface-muted);
 }
 
 .account-name {
@@ -407,12 +408,12 @@ watch([() => loginUserStore.loginUser.id, () => route.params.id], () => void loa
 }
 
 .account-chevron {
-  color: #7c8994;
+  color: var(--color-text-muted);
   font-size: 12px;
 }
 
 .workspace-sidebar :focus-visible {
-  outline: 3px solid rgba(40, 88, 199, 0.35);
+  outline: 3px solid var(--color-focus);
   outline-offset: 2px;
 }
 
@@ -429,7 +430,7 @@ watch([() => loginUserStore.loginUser.id, () => route.params.id], () => void loa
     gap: 7px 10px;
     padding: 10px 12px 8px;
     border-right: 0;
-    border-bottom: 1px solid #e0e5e9;
+    border-bottom: 1px solid var(--color-border);
   }
 
   .sidebar-brand {

@@ -6,9 +6,12 @@ import router from './router'
 
 import Antd from 'ant-design-vue'
 import 'ant-design-vue/dist/reset.css'
+import '@/styles/theme.css'
+import { applyWorkspaceTheme } from '@/styles/theme'
 
 import '@/access'
 
+applyWorkspaceTheme()
 const app = createApp(App)
 
 app.use(createPinia())

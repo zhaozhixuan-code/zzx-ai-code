@@ -235,27 +235,27 @@ async function createApp(): Promise<void> {
 <style scoped>
 #homePage {
   min-height: 100%;
-  background: #fbfcfa;
-  color: #243c35;
+  background: var(--color-page);
+  color: var(--color-text);
 }
 
 .home-container {
   width: min(calc(100% - 80px), 1120px);
   margin: 0 auto;
-  padding: 58px 0 64px;
+  padding: 64px 0;
   container-type: inline-size;
 }
 
 .hero-section {
-  margin-bottom: 26px;
+  margin-bottom: 30px;
   text-align: center;
 }
 
 .hero-section h1 {
   margin: 0 0 12px;
-  color: #24433b;
-  font-family: 'Microsoft YaHei UI', 'PingFang SC', sans-serif;
-  font-size: clamp(28px, 3vw, 40px);
+  color: var(--color-text);
+  font-family: var(--font-ui);
+  font-size: clamp(28px, 3vw, 36px);
   font-weight: 650;
   letter-spacing: -0.8px;
   line-height: 1.4;
@@ -264,34 +264,33 @@ async function createApp(): Promise<void> {
 
 .hero-section p {
   margin: 0;
-  color: #71817a;
+  color: var(--color-text-muted);
   font-size: 15px;
 }
 
 .composer-section {
-  width: 100%;
-  margin-bottom: 46px;
+  /* 创作区单独限宽，作品列表保留宽版，便于输入时聚焦、浏览时并排比较。 */
+  width: min(100%, 760px);
+  margin: 0 auto 60px;
   scroll-margin-top: 24px;
 }
 
 .composer {
   overflow: hidden;
-  padding: 15px 20px 13px;
-  border: 1px solid #cbded4;
-  border-radius: 14px;
-  background: #f1f7f2;
-  box-shadow: 0 5px 20px rgba(45, 87, 67, 0.04);
-  transition:
-    border-color 160ms ease,
-    box-shadow 160ms ease;
+  padding: 16px 22px 12px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 18px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-composer);
+  transition: border-color 160ms ease;
 }
 
 .composer:focus-within {
-  border-color: #7caa94;
+  border-color: var(--color-focus);
 }
 
 .composer.has-error {
-  border-color: #bc6a54;
+  border-color: var(--color-error);
 }
 
 .composer-heading {
@@ -299,26 +298,33 @@ async function createApp(): Promise<void> {
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  margin-bottom: 9px;
+  margin-bottom: 10px;
 }
 
 .composer-label {
   display: flex;
   align-items: center;
-  gap: 7px;
-  color: #386353;
-  font-size: 12px;
+  gap: 8px;
+  color: var(--color-primary);
+  font-size: 13px;
   font-weight: 600;
 }
 
 .composer-label :deep(.anticon) {
-  color: #bd7656;
+  display: inline-flex;
+  width: 23px;
+  height: 23px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
   font-size: 14px;
 }
 
 .composer-note {
-  color: #7b8f83;
-  font-size: 11px;
+  color: var(--color-text-muted);
+  font-size: 12px;
 }
 
 .prompt-field {
@@ -335,14 +341,14 @@ async function createApp(): Promise<void> {
   border-radius: 3px;
   outline: none;
   background: transparent;
-  color: #253e35;
+  color: var(--color-text);
   font: inherit;
   font-size: 16px;
   line-height: 1.8;
   overflow-y: auto;
   overscroll-behavior-y: contain;
   scrollbar-width: thin;
-  scrollbar-color: #bdd1c5 transparent;
+  scrollbar-color: var(--color-border-strong) transparent;
   resize: none;
 }
 
@@ -353,7 +359,7 @@ async function createApp(): Promise<void> {
   right: 5px;
   max-height: 58px;
   overflow: hidden;
-  color: #6b8778;
+  color: var(--color-text-secondary);
   font-size: 16px;
   line-height: 1.8;
   overflow-wrap: anywhere;
@@ -361,7 +367,7 @@ async function createApp(): Promise<void> {
 }
 
 .example-prefix {
-  color: #8a9e91;
+  color: var(--color-text-muted);
 }
 
 .typing-caret {
@@ -369,7 +375,7 @@ async function createApp(): Promise<void> {
   width: 2px;
   height: 1em;
   margin-left: 3px;
-  background: #64957c;
+  background: var(--color-primary);
   vertical-align: -2px;
 }
 
@@ -382,7 +388,9 @@ async function createApp(): Promise<void> {
 .composer-toolbar {
   justify-content: space-between;
   gap: 12px;
-  padding-top: 7px;
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-border);
 }
 
 .composer-tools {
@@ -401,7 +409,7 @@ async function createApp(): Promise<void> {
   border: 0;
   border-radius: 5px;
   background: transparent;
-  color: #5d796b;
+  color: var(--color-text-muted);
   cursor: pointer;
   font: inherit;
   font-size: 12px;
@@ -410,16 +418,16 @@ async function createApp(): Promise<void> {
 
 .apply-example:hover,
 .motion-toggle:hover {
-  background: #e2ece4;
-  color: #294d3e;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
 }
 
 .apply-example kbd {
   padding: 1px 5px;
-  border: 1px solid #c7d9ca;
+  border: 1px solid var(--color-primary-border);
   border-bottom-width: 2px;
   border-radius: 4px;
-  background: #fff;
+  background: var(--color-surface);
   font: inherit;
   font-size: 11px;
   line-height: 19px;
@@ -432,32 +440,32 @@ async function createApp(): Promise<void> {
 
 .apply-example:focus-visible,
 .motion-toggle:focus-visible {
-  outline: 3px solid #a3bcf0;
+  outline: 3px solid var(--color-focus);
   outline-offset: 2px;
 }
 
 .input-help {
-  color: #73897b;
+  color: var(--color-text-muted);
   font-size: 12px;
 }
 
 .generate-button {
   display: inline-flex;
-  height: 36px;
+  height: 38px;
   align-items: center;
   gap: 10px;
   padding: 0 16px;
-  border-color: #315dd0;
-  border-radius: 7px;
-  background: #315dd0;
+  border-color: var(--color-primary);
+  border-radius: 9px;
+  background: var(--color-primary);
   box-shadow: none;
   font-size: 13px;
   font-weight: 600;
 }
 
 .generate-button:hover {
-  border-color: #224bb4;
-  background: #224bb4;
+  border-color: var(--color-primary-hover);
+  background: var(--color-primary-hover);
 }
 
 .generate-button :deep(.anticon) {
@@ -466,14 +474,15 @@ async function createApp(): Promise<void> {
 
 .prompt-feedback {
   min-height: 28px;
-  padding: 9px 2px 0;
-  color: #8a948c;
+  padding: 12px 2px 0;
+  color: var(--color-text-muted);
   font-size: 12px;
   line-height: 1.6;
+  text-align: center;
 }
 
 .prompt-error {
-  color: #a34732;
+  color: var(--color-error);
 }
 
 .projects-heading {
@@ -482,18 +491,20 @@ async function createApp(): Promise<void> {
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 24px;
+  padding-top: 26px;
+  border-top: 1px solid var(--color-border);
 }
 
 .projects-heading h2 {
   margin: 0 0 7px;
-  color: #2b4037;
+  color: var(--color-text);
   font-size: 22px;
   font-weight: 650;
 }
 
 .projects-heading p {
   margin: 0;
-  color: #818b84;
+  color: var(--color-text-muted);
   font-size: 13px;
   line-height: 1.6;
 }
@@ -504,7 +515,7 @@ async function createApp(): Promise<void> {
   align-items: center;
   gap: 7px;
   padding-bottom: 2px;
-  color: #6e8174;
+  color: var(--color-text-muted);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
@@ -513,7 +524,7 @@ async function createApp(): Promise<void> {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #64967e;
+  background: var(--color-primary);
 }
 
 .pagination-wrapper {

@@ -89,8 +89,8 @@ function showLogin(): void {
 <style scoped>
 #myProjectsPage {
   min-height: 100%;
-  background: #fbfcfa;
-  color: #2b4037;
+  background: var(--color-page);
+  color: var(--color-text);
 }
 
 .projects-container {
@@ -116,7 +116,7 @@ function showLogin(): void {
 
 .page-heading p {
   margin: 0;
-  color: #7c8980;
+  color: var(--color-text-muted);
   font-size: 14px;
 }
 
@@ -128,14 +128,14 @@ function showLogin(): void {
   gap: 8px;
   padding: 0 14px;
   border-radius: 7px;
-  background: #315dd0;
-  color: #fff;
+  background: var(--color-primary);
+  color: var(--color-surface);
   font-size: 13px;
   text-decoration: none;
 }
 
 .create-project:hover {
-  background: #224bb4;
+  background: var(--color-primary-hover);
 }
 
 .catalog-summary {
@@ -144,13 +144,13 @@ function showLogin(): void {
   gap: 16px;
   margin-bottom: 22px;
   padding-bottom: 14px;
-  border-bottom: 1px solid #dce5df;
+  border-bottom: 1px solid var(--color-border);
   font-size: 14px;
   font-weight: 600;
 }
 
 .project-total {
-  color: #809086;
+  color: var(--color-text-muted);
   font-size: 12px;
   font-weight: 400;
   font-variant-numeric: tabular-nums;
@@ -164,15 +164,15 @@ function showLogin(): void {
   justify-content: center;
   gap: 12px;
   padding: 32px 20px;
-  border: 1px dashed #d1ded5;
+  border: 1px dashed var(--color-border-strong);
   border-radius: 12px;
-  background: #f7faf7;
+  background: var(--color-primary-surface);
   text-align: center;
 }
 
 .login-state > :deep(.anticon) {
   margin-bottom: 4px;
-  color: #779b83;
+  color: var(--color-primary);
   font-size: 30px;
 }
 
@@ -184,7 +184,7 @@ function showLogin(): void {
 
 .login-state p {
   margin: 0 0 6px;
-  color: #7b8a7f;
+  color: var(--color-text-muted);
   font-size: 14px;
 }
 
@@ -193,20 +193,20 @@ function showLogin(): void {
   min-height: 36px;
   align-items: center;
   padding: 0 14px;
-  border: 1px solid #d2dfd6;
+  border: 1px solid var(--color-border-strong);
   border-radius: 6px;
-  background: #fff;
-  color: #2858c7;
+  background: var(--color-surface);
+  color: var(--color-primary);
   font-size: 13px;
   text-decoration: none;
 }
 
 .empty-create:hover {
-  background: #eaf2ed;
+  background: var(--color-primary-soft);
 }
 
 .projects-container a:focus-visible {
-  outline: 3px solid #a5bced;
+  outline: 3px solid var(--color-focus);
   outline-offset: 3px;
 }
 

@@ -85,7 +85,7 @@ const handleSubmit = async (values: API.UserRegisterRequest) => {
 
 <style scoped>
 #userRegisterPage {
-  background: white;
+  background: var(--color-surface);
   max-width: 720px;
   padding: 24px;
   margin: 24px auto;
@@ -98,13 +98,13 @@ const handleSubmit = async (values: API.UserRegisterRequest) => {
 
 .desc {
   text-align: center;
-  color: #bbb;
+  color: var(--color-text-muted);
   margin-bottom: 16px;
 }
 
 .tips {
   margin-bottom: 16px;
-  color: #bbb;
+  color: var(--color-text-muted);
   font-size: 13px;
   text-align: right;
 }

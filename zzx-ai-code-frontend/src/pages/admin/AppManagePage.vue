@@ -265,18 +265,18 @@ const deleteApp = async (id: number | undefined) => {
 <style scoped>
 #appManagePage {
   padding: 24px;
-  background: white;
+  background: var(--color-surface);
   margin-top: 16px;
 }
 
 .no-cover {
   width: 80px;
   height: 60px;
-  background: #f5f5f5;
+  background: var(--color-surface-muted);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #999;
+  color: var(--color-text-muted);
   font-size: 12px;
   border-radius: 4px;
 }
@@ -289,18 +289,18 @@ const deleteApp = async (id: number | undefined) => {
 }
 
 .text-gray {
-  color: #999;
+  color: var(--color-text-muted);
 }
 
 .featured-btn {
-  background: #faad14;
-  border-color: #faad14;
-  color: white;
+  background: var(--color-warning);
+  border-color: var(--color-warning);
+  color: var(--color-surface);
 }
 
 .featured-btn:hover {
-  background: #d48806;
-  border-color: #d48806;
+  background: var(--color-warning-hover);
+  border-color: var(--color-warning-hover);
 }
 
 :deep(.ant-table-tbody > tr > td) {

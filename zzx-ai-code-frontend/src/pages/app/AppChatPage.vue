@@ -4,7 +4,7 @@
     <div class="header-bar">
       <div class="header-left">
         <h1 class="app-name">{{ appInfo?.appName || '网站生成器' }}</h1>
-        <a-tag v-if="appInfo?.codeGenType" color="blue" class="code-gen-type-tag">
+        <a-tag v-if="appInfo?.codeGenType" class="code-gen-type-tag">
           {{ formatCodeGenType(appInfo.codeGenType) }}
         </a-tag>
       </div>
@@ -817,8 +817,8 @@ onUnmounted(() => {
   min-height: 0;
   flex-direction: column;
   padding: 0 14px 14px;
-  background: #f3f5f7;
-  color: #1d2935;
+  background: var(--color-page);
+  color: var(--color-text);
 }
 
 .header-bar {
@@ -829,7 +829,7 @@ onUnmounted(() => {
   justify-content: space-between;
   gap: 16px;
   padding: 0 8px;
-  border-bottom: 1px solid #e0e5e9;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .header-left,
@@ -843,7 +843,7 @@ onUnmounted(() => {
 .app-name {
   overflow: hidden;
   margin: 0;
-  color: #1d2935;
+  color: var(--color-text);
   font-size: 17px;
   font-weight: 650;
   text-overflow: ellipsis;
@@ -852,10 +852,10 @@ onUnmounted(() => {
 
 .code-gen-type-tag {
   flex: 0 0 auto;
-  border-color: #d8e1ee;
+  border-color: var(--color-primary-border);
   border-radius: 4px;
-  background: #edf2f8;
-  color: #425d85;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
   font-size: 12px;
 }
 
@@ -880,9 +880,9 @@ onUnmounted(() => {
   min-height: 0;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid #dfe4e8;
+  border: 1px solid var(--color-border);
   border-radius: 7px;
-  background: #fff;
+  background: var(--color-surface);
 }
 
 .preview-section {
@@ -907,13 +907,13 @@ onUnmounted(() => {
   justify-content: space-between;
   gap: 12px;
   padding: 0 15px;
-  border-bottom: 1px solid #e5e9ec;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .preview-header h2,
 .chat-heading h2 {
   margin: 0;
-  color: #293744;
+  color: var(--color-text);
   font-size: 14px;
   font-weight: 650;
 }
@@ -927,7 +927,7 @@ onUnmounted(() => {
 .preview-actions :deep(.ant-btn) {
   height: 30px;
   padding: 0 7px;
-  color: #435f91;
+  color: var(--color-primary);
   font-size: 12px;
 }
 
@@ -935,7 +935,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #5572a8;
+  color: var(--color-primary);
 }
 
 .chat-heading :deep(.anticon) {
@@ -944,12 +944,12 @@ onUnmounted(() => {
 
 .chat-status,
 .chat-hint {
-  color: #7c8994;
+  color: var(--color-text-muted);
   font-size: 12px;
 }
 
 .chat-status {
-  color: #2858c7;
+  color: var(--color-primary);
 }
 
 .messages-container {
@@ -984,21 +984,21 @@ onUnmounted(() => {
   max-width: 86%;
   min-width: 0;
   padding: 10px 12px;
-  border: 1px solid #e2e7eb;
+  border: 1px solid var(--color-border);
   border-radius: 7px;
-  color: #33414d;
+  color: var(--color-text);
   line-height: 1.6;
   overflow-wrap: anywhere;
 }
 
 .user-message .message-content {
-  border-color: #2858c7;
-  background: #2858c7;
-  color: #fff;
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-surface);
 }
 
 .ai-message .message-content {
-  background: #f5f7f8;
+  background: var(--color-surface-muted);
 }
 
 .message-avatar {
@@ -1009,7 +1009,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #667480;
+  color: var(--color-text-secondary);
 }
 
 .conversation-empty {
@@ -1017,7 +1017,7 @@ onUnmounted(() => {
   min-height: 100%;
   place-items: center;
   padding: 20px;
-  color: #7b8791;
+  color: var(--color-text-muted);
   text-align: center;
 }
 
@@ -1036,8 +1036,8 @@ onUnmounted(() => {
 .input-container {
   flex: 0 0 auto;
   padding: 12px;
-  border-top: 1px solid #e5e9ec;
-  background: #fff;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
 }
 
 .input-wrapper {
@@ -1047,7 +1047,7 @@ onUnmounted(() => {
 .input-wrapper :deep(.ant-input) {
   min-height: 96px;
   padding: 10px 46px 34px 11px;
-  border-color: #dce3e8;
+  border-color: var(--color-border-strong);
   border-radius: 6px;
   font-size: 13px;
   line-height: 1.6;
@@ -1056,8 +1056,8 @@ onUnmounted(() => {
 
 .input-wrapper :deep(.ant-input:focus),
 .input-wrapper :deep(.ant-input-focused) {
-  border-color: #7592cf;
-  box-shadow: 0 0 0 2px rgba(40, 88, 199, 0.1);
+  border-color: var(--color-focus);
+  box-shadow: var(--shadow-focus);
 }
 
 .input-actions {
@@ -1070,7 +1070,7 @@ onUnmounted(() => {
   width: 32px;
   height: 32px;
   border-radius: 5px;
-  background: #2858c7;
+  background: var(--color-primary);
 }
 
 .preview-content {
@@ -1078,7 +1078,7 @@ onUnmounted(() => {
   min-height: 0;
   flex: 1;
   overflow: hidden;
-  background: #f0f2f4;
+  background: var(--color-surface-muted);
 }
 
 .preview-placeholder,
@@ -1090,7 +1090,7 @@ onUnmounted(() => {
   justify-content: center;
   gap: 12px;
   padding: 20px;
-  color: #73808b;
+  color: var(--color-text-muted);
   text-align: center;
 }
 
@@ -1101,7 +1101,7 @@ onUnmounted(() => {
 }
 
 .placeholder-icon {
-  color: #6882b7;
+  color: var(--color-primary);
   font-size: 30px;
 }
 
@@ -1110,7 +1110,7 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   border: 0;
-  background: #fff;
+  background: var(--color-surface);
 }
 
 .selected-element-alert {
@@ -1131,22 +1131,22 @@ onUnmounted(() => {
 }
 
 .element-tag {
-  color: #2858c7;
+  color: var(--color-primary);
   font-weight: 600;
 }
 
 .element-id {
-  color: #42785c;
+  color: var(--color-success);
 }
 
 .element-class {
-  color: #a45e42;
+  color: var(--color-warning);
 }
 
 .element-details {
   display: grid;
   gap: 5px;
-  color: #586671;
+  color: var(--color-text-secondary);
 }
 
 .element-item {
@@ -1156,16 +1156,16 @@ onUnmounted(() => {
 
 .element-selector-code {
   padding: 2px 5px;
-  border: 1px solid #dce3e8;
+  border: 1px solid var(--color-border-strong);
   border-radius: 3px;
-  background: #f3f5f6;
-  color: #76524a;
+  background: var(--color-surface-muted);
+  color: var(--color-warning);
   font-size: 11px;
   overflow-wrap: anywhere;
 }
 
 .edit-mode-active {
-  color: #35684b !important;
+  color: var(--color-success) !important;
 }
 
 @media (max-width: 1024px) {

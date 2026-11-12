@@ -149,8 +149,8 @@ const doLogout = async () => {
   z-index: 100;
   height: 64px;
   padding: 0 30px;
-  border-bottom: 1px solid #e1e6ea;
-  background: #fff;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
   line-height: 64px;
 }
 
@@ -169,7 +169,7 @@ const doLogout = async () => {
 
 .site-title {
   margin: 0;
-  color: #1d2935;
+  color: var(--color-text);
   font-size: 17px;
   font-weight: 650;
 }
@@ -182,16 +182,16 @@ const doLogout = async () => {
 .ant-menu-horizontal :deep(.ant-menu-item) {
   height: 62px;
   line-height: 62px;
-  color: #53616d;
+  color: var(--color-text-secondary);
 }
 
 .ant-menu-horizontal :deep(.ant-menu-item:hover),
 .ant-menu-horizontal :deep(.ant-menu-item-selected) {
-  color: #2858c7;
+  color: var(--color-primary);
 }
 
 .ant-menu-horizontal :deep(.ant-menu-item-selected)::after {
-  border-bottom-color: #2858c7;
+  border-bottom-color: var(--color-primary);
 }
 
 .user-login-status {
@@ -210,13 +210,13 @@ const doLogout = async () => {
 }
 
 .user-trigger:hover {
-  background: #f1f4f6;
+  background: var(--color-surface-muted);
 }
 
 .user-name {
   max-width: 112px;
   overflow: hidden;
-  color: #36434e;
+  color: var(--color-text);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -225,7 +225,7 @@ const doLogout = async () => {
   height: 36px;
   padding: 0 16px;
   border-radius: 6px;
-  background: #2858c7;
+  background: var(--color-primary);
   font-weight: 600;
 }
 
@@ -262,9 +262,9 @@ const doLogout = async () => {
     width: 36px;
     height: 36px;
     padding: 0;
-    border-color: #dce3e8;
+    border-color: var(--color-border-strong);
     border-radius: 6px;
-    color: #36434e;
+    color: var(--color-text);
   }
 }
 

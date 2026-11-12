@@ -13,7 +13,7 @@
         </div>
         <div class="info-item">
           <span class="info-label">生成类型：</span>
-          <a-tag v-if="app?.codeGenType" color="blue">
+          <a-tag v-if="app?.codeGenType" class="code-gen-type-tag">
             {{ formatCodeGenType(app.codeGenType) }}
           </a-tag>
           <span v-else>未知类型</span>
@@ -89,6 +89,12 @@ const handleDelete = () => {
 </script>
 
 <style scoped>
+.code-gen-type-tag {
+  border-color: var(--color-primary-border);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
 .app-detail-content {
   padding: 8px 0;
 }
@@ -105,13 +111,13 @@ const handleDelete = () => {
 
 .info-label {
   width: 80px;
-  color: #666;
+  color: var(--color-text-secondary);
   font-size: 14px;
   flex-shrink: 0;
 }
 
 .app-actions {
   padding-top: 16px;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--color-border);
 }
 </style>

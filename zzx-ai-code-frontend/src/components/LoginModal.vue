@@ -243,7 +243,7 @@ const handleRegister = async () => {
 .modal-container {
   padding: 40px 32px 32px;
   position: relative;
-  background: #fff;
+  background: var(--color-surface);
 }
 
 .close-btn {
@@ -251,7 +251,7 @@ const handleRegister = async () => {
   top: 16px;
   right: 16px;
   font-size: 20px;
-  color: #999;
+  color: var(--color-text-muted);
   cursor: pointer;
   transition: all 0.3s;
   width: 32px;
@@ -263,8 +263,8 @@ const handleRegister = async () => {
 }
 
 .close-btn:hover {
-  color: #333;
-  background: #f5f5f5;
+  color: var(--color-text);
+  background: var(--color-surface-muted);
 }
 
 .modal-header {
@@ -282,36 +282,36 @@ const handleRegister = async () => {
   width: 56px;
   height: 56px;
   border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.15);
+  box-shadow: 0 4px 12px rgba(35, 107, 96, 0.08);
 }
 
 .modal-title {
   font-size: 22px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--color-text);
   margin: 0 0 8px;
   letter-spacing: -0.5px;
 }
 
 .modal-desc {
   font-size: 14px;
-  color: #999;
+  color: var(--color-text-muted);
   margin: 0;
 }
 
 .login-modal :deep(.ant-input-affix-wrapper) {
   border-radius: 10px;
   padding: 12px 16px;
-  border: 1px solid #e5e5e5;
-  background: #fafafa;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-muted);
   transition: all 0.3s;
 }
 
 .login-modal :deep(.ant-input-affix-wrapper:hover),
 .login-modal :deep(.ant-input-affix-wrapper-focused) {
-  border-color: #1890ff;
-  background: #fff;
-  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.1);
+  border-color: var(--color-primary);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-focus);
 }
 
 .login-modal :deep(.ant-input) {
@@ -319,15 +319,15 @@ const handleRegister = async () => {
 }
 
 .login-modal :deep(.ant-input::placeholder) {
-  color: #bbb;
+  color: var(--color-text-muted);
 }
 
 .login-modal :deep(.ant-input-password-icon) {
-  color: #bbb;
+  color: var(--color-text-muted);
 }
 
 .login-modal :deep(.ant-input-password-icon:hover) {
-  color: #1890ff;
+  color: var(--color-primary);
 }
 
 .login-modal :deep(.ant-form-item) {
@@ -344,25 +344,20 @@ const handleRegister = async () => {
   height: 48px;
   font-size: 16px;
   font-weight: 500;
-  background: #1890ff;
-  border-color: #1890ff;
+  background: var(--color-primary);
+  border-color: var(--color-primary);
   transition: all 0.3s;
 }
 
 .submit-btn:hover {
-  background: #40a9ff;
-  border-color: #40a9ff;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.35);
-}
-
-.submit-btn:active {
-  transform: translateY(0);
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+  box-shadow: 0 4px 12px rgba(35, 107, 96, 0.12);
 }
 
 .login-modal :deep(.ant-btn-primary[disabled]) {
-  background: #91d5ff;
-  border-color: #91d5ff;
+  background: var(--color-primary-disabled);
+  border-color: var(--color-primary-disabled);
 }
 
 .switch-mode {
@@ -372,18 +367,18 @@ const handleRegister = async () => {
 
 .switch-text {
   font-size: 14px;
-  color: #999;
+  color: var(--color-text-muted);
 }
 
 .switch-btn {
   padding: 0 4px;
   font-size: 14px;
-  color: #1890ff;
+  color: var(--color-primary);
   font-weight: 500;
 }
 
 .switch-btn:hover {
-  color: #40a9ff;
+  color: var(--color-primary-hover);
 }
 
 /* 手机号/账号输入框特殊样式 */
@@ -394,7 +389,15 @@ const handleRegister = async () => {
 
 .login-modal :deep(.ant-input-number:hover),
 .login-modal :deep(.ant-input-number-focused) {
-  border-color: #1890ff;
-  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.1);
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-focus);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .close-btn,
+  .submit-btn,
+  .login-modal :deep(.ant-input-affix-wrapper) {
+    transition: none;
+  }
 }
 </style>

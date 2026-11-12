@@ -1,0 +1,31 @@
+/* 与组件库共用根元素上的主题变量；只统一应用界面，不影响 iframe 内生成的网站。 */
+html {
+  background: var(--color-page);
+  color: var(--color-text);
+  accent-color: var(--color-primary);
+}
+
+body {
+  background: var(--color-page);
+  color: var(--color-text);
+  font-family: var(--font-ui);
+}
+
+::selection {
+  background: var(--color-primary-soft);
+  color: var(--color-primary-hover);
+}
+
+.ant-avatar {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.ant-btn-primary {
+  box-shadow: none;
+}
+
+.ant-btn:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 3px;
+}

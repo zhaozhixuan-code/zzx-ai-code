@@ -104,9 +104,9 @@ watch(
 .app-card {
   min-width: 0;
   overflow: hidden;
-  border: 1px solid #e0e7e2;
+  border: 1px solid var(--color-border);
   border-radius: 10px;
-  background: #fff;
+  background: var(--color-surface);
   transition:
     border-color 150ms ease,
     box-shadow 150ms ease;
@@ -114,8 +114,8 @@ watch(
 
 .app-card:hover,
 .app-card:focus-within {
-  border-color: #adc6b8;
-  box-shadow: 0 6px 18px rgba(44, 73, 57, 0.06);
+  border-color: var(--color-primary-border);
+  box-shadow: var(--shadow-card);
 }
 
 .app-preview {
@@ -123,8 +123,8 @@ watch(
   display: block;
   overflow: hidden;
   aspect-ratio: 16 / 10;
-  border-bottom: 1px solid #e6ece7;
-  background: #edf3ef;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-primary-soft);
   color: inherit;
   text-decoration: none;
 }
@@ -143,32 +143,32 @@ watch(
   height: 100%;
   place-items: center;
   padding: 24px 30px 0;
-  background: #edf4ee;
+  background: var(--color-surface-muted);
 }
 
 .mini-browser {
   width: 100%;
   align-self: end;
   overflow: hidden;
-  border: 1px solid #d0ddd2;
+  border: 1px solid var(--color-primary-border);
   border-bottom: 0;
   border-radius: 7px 7px 0 0;
-  background: #fcfefd;
-  box-shadow: 0 6px 16px rgba(57, 88, 67, 0.06);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
 }
 
 .mini-browser-bar {
   display: flex;
   gap: 4px;
   padding: 9px 10px;
-  border-bottom: 1px solid #e6ece6;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .mini-browser-bar i {
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  background: #c9d6cc;
+  background: var(--color-border-strong);
 }
 
 .mini-browser-body {
@@ -178,14 +178,14 @@ watch(
   align-items: center;
   gap: 8px;
   padding: 15px;
-  color: #7f9b88;
+  color: var(--color-primary-muted);
 }
 
 .mini-browser-body > span {
   display: -webkit-box;
   max-width: 100%;
   overflow: hidden;
-  color: #486552;
+  color: var(--color-primary);
   font-size: 12px;
   font-weight: 600;
   overflow-wrap: anywhere;
@@ -209,7 +209,7 @@ watch(
   width: 100%;
   height: 4px;
   border-radius: 3px;
-  background: #e3ece5;
+  background: var(--color-surface-muted);
 }
 
 .mini-browser-lines i:last-child {
@@ -224,10 +224,10 @@ watch(
   align-items: center;
   gap: 5px;
   padding: 3px 8px;
-  border: 1px solid #d7e7dc;
+  border: 1px solid var(--color-primary-border);
   border-radius: 5px;
-  background: #f8fcf9;
-  color: #52765d;
+  background: var(--color-success-bg);
+  color: var(--color-success);
   font-size: 10px;
   line-height: 1.6;
 }
@@ -236,17 +236,17 @@ watch(
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  background: #6c9b76;
+  background: var(--color-success);
 }
 
 .project-status.is-draft {
-  border-color: #e3e4e5;
-  background: #fbfcfc;
-  color: #7d8783;
+  border-color: var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
 }
 
 .project-status.is-draft > span {
-  background: #9ba69f;
+  background: var(--color-text-muted);
 }
 
 .app-info {
@@ -256,7 +256,7 @@ watch(
 .app-title {
   overflow: hidden;
   margin: 0 0 12px;
-  color: #2e4539;
+  color: var(--color-text);
   font-size: 15px;
   font-weight: 650;
   line-height: 1.5;
@@ -270,7 +270,7 @@ watch(
 }
 
 .app-title a:hover {
-  color: #2858c7;
+  color: var(--color-primary);
 }
 
 .app-meta {
@@ -279,7 +279,7 @@ watch(
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  color: #87948b;
+  color: var(--color-text-muted);
   font-size: 11px;
 }
 
@@ -307,7 +307,7 @@ watch(
   justify-content: space-between;
   gap: 10px;
   margin-top: 14px;
-  border-top: 1px solid #edf0ed;
+  border-top: 1px solid var(--color-border);
   font-size: 11px;
 }
 
@@ -316,21 +316,21 @@ watch(
   min-height: 32px;
   align-items: center;
   gap: 6px;
-  color: #2858c7;
+  color: var(--color-primary);
   text-decoration: none;
 }
 
 .app-actions a:hover {
-  color: #173c97;
+  color: var(--color-primary-hover);
 }
 
 .app-actions .edit-link {
-  color: #506d5b;
+  color: var(--color-primary-muted);
 }
 
 .public-caption {
   overflow: hidden;
-  color: #8a998e;
+  color: var(--color-text-muted);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -340,7 +340,7 @@ watch(
 }
 
 .app-card a:focus-visible {
-  outline: 3px solid #a6bbef;
+  outline: 3px solid var(--color-focus);
   outline-offset: -3px;
 }
 

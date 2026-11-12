@@ -301,23 +301,23 @@ onMounted(() => {
 .cover-preview {
   margin-top: 12px;
   padding: 12px;
-  border: 1px solid #e8e8e8;
+  border: 1px solid var(--color-border);
   border-radius: 6px;
-  background: #fafafa;
+  background: var(--color-surface-muted);
 }
 
 .form-tip {
   font-size: 12px;
-  color: #999;
+  color: var(--color-text-muted);
   margin-top: 4px;
 }
 
 :deep(.ant-card-head) {
-  background: #fafafa;
+  background: var(--color-surface-muted);
 }
 
 :deep(.ant-descriptions-item-label) {
-  background: #fafafa;
+  background: var(--color-surface-muted);
   font-weight: 500;
 }
 </style>

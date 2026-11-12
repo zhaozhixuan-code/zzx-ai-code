@@ -62,10 +62,10 @@ const emit = defineEmits<{ retry: [] }>()
   justify-content: center;
   gap: 10px;
   padding: 32px 20px;
-  border: 1px dashed #d4dfdd;
+  border: 1px dashed var(--color-border-strong);
   border-radius: 12px;
-  background: #fcfdfd;
-  color: #67807a;
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
   text-align: center;
 }
 
@@ -76,7 +76,7 @@ const emit = defineEmits<{ retry: [] }>()
 
 .gallery-state h3 {
   margin: 0;
-  color: #2b3d39;
+  color: var(--color-text);
   font-size: 17px;
   font-weight: 600;
 }
@@ -84,7 +84,7 @@ const emit = defineEmits<{ retry: [] }>()
 .gallery-state p {
   max-width: 440px;
   margin: 0;
-  color: #6b7b77;
+  color: var(--color-text-secondary);
   font-size: 14px;
   overflow-wrap: anywhere;
 }
@@ -92,35 +92,35 @@ const emit = defineEmits<{ retry: [] }>()
 .retry-button {
   margin-top: 4px;
   padding: 7px 16px;
-  border: 1px solid #cad7d4;
+  border: 1px solid var(--color-border-strong);
   border-radius: 6px;
-  background: #fff;
-  color: #2858c7;
+  background: var(--color-surface);
+  color: var(--color-primary);
   cursor: pointer;
   font: inherit;
 }
 
 .retry-button:hover {
-  background: #eff5f3;
+  background: var(--color-primary-surface);
 }
 
 .retry-button:focus-visible {
-  outline: 3px solid #a5bcf0;
+  outline: 3px solid var(--color-focus);
   outline-offset: 3px;
 }
 
 .skeleton-card {
   overflow: hidden;
   padding-bottom: 18px;
-  border: 1px solid #e2e9e6;
+  border: 1px solid var(--color-border);
   border-radius: 10px;
-  background: #fff;
+  background: var(--color-surface);
 }
 
 .skeleton-cover {
   aspect-ratio: 16 / 10;
   margin-bottom: 18px;
-  background: #eaf0ed;
+  background: var(--color-surface-muted);
 }
 
 .skeleton-line {
@@ -128,7 +128,7 @@ const emit = defineEmits<{ retry: [] }>()
   height: 12px;
   margin: 10px 16px 0;
   border-radius: 3px;
-  background: #eaf0ed;
+  background: var(--color-surface-muted);
 }
 
 .skeleton-line-short {

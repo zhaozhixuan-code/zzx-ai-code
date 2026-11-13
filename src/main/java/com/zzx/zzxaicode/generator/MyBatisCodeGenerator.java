@@ -6,10 +6,19 @@ import com.zaxxer.hikari.HikariDataSource;
 
 public class MyBatisCodeGenerator {
 
-    // 需要生成的表名
-    private static final String[] TABLE_NAMES = {"chat_group_member"};
+    // 使用前显式指定目标表，空列表不允许执行，避免意外生成全部表的代码。
+    private static final String[] TABLE_NAMES = {};
 
+    /**
+     * 为显式指定的表生成 MyBatis-Flex 基础代码。
+     *
+     * @param args 命令行参数，当前不使用
+     * @throws IllegalStateException 未配置目标表时终止，不连接数据库或执行生成
+     */
     public static void main(String[] args) {
+        if (TABLE_NAMES.length == 0) {
+            throw new IllegalStateException("请先在 TABLE_NAMES 中配置需要生成代码的表名");
+        }
         // 1. 配置数据源（硬编码数据库信息，直接替换为你的实际配置）
         HikariDataSource dataSource = new HikariDataSource();
         // 数据库连接URL（硬编码host、port、数据库名）

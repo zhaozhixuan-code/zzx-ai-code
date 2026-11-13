@@ -109,27 +109,12 @@ declare namespace API {
     message?: string
   }
 
-  type ChatGroupMember = {
-    id?: number
-    groupId?: number
-    userId?: number
-    role?: string
-    joinTime?: string
-    quitTime?: string
-    isQuit?: number
-    createTime?: string
-    updateTime?: string
-    isDelete?: number
-  }
-
   type ChatHistory = {
     id?: number
     message?: string
     messageType?: string
     appId?: number
     userId?: number
-    groupId?: number
-    migrateFlag?: number
     createTime?: string
     updateTime?: string
     isDelete?: number
@@ -183,10 +168,6 @@ declare namespace API {
   }
 
   type getAppVOByIdParams = {
-    id: number
-  }
-
-  type getInfo1Params = {
     id: number
   }
 
@@ -245,21 +226,8 @@ declare namespace API {
     description?: string
   }
 
-  type page1Params = {
-    page: PageChatGroupMember
-  }
-
   type PageAppVO = {
     records?: AppVO[]
-    pageNumber?: number
-    pageSize?: number
-    totalPage?: number
-    totalRow?: number
-    optimizeCountQuery?: boolean
-  }
-
-  type PageChatGroupMember = {
-    records?: ChatGroupMember[]
     pageNumber?: number
     pageSize?: number
     totalPage?: number
@@ -302,10 +270,6 @@ declare namespace API {
     isValid?: boolean
     errors?: string[]
     suggestions?: string[]
-  }
-
-  type remove1Params = {
-    id: number
   }
 
   type removeParams = {

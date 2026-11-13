@@ -62,19 +62,6 @@ public class ChatHistory implements Serializable {
     private Long userId;
 
     /**
-     * 群组id，关联chat_group.id，null表示单人会话
-     */
-    @Column("groupId")
-    private Long groupId;
-
-    /**
-     * 标记是否为从单人同步的历史消息
-     * 0-原生消息，1-从单人同步到群聊的消息
-     */
-    @Column("migrateFlag")
-    private Integer migrateFlag;
-
-    /**
      * 创建时间
      */
     @Column("createTime")

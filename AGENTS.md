@@ -82,7 +82,7 @@
 
 主要包职责：
 
-- `controller`：用户、应用、聊天历史、群聊、静态资源、健康检查、工作流 SSE 等接口。
+- `controller`：用户、应用、聊天历史、静态资源、健康检查、工作流 SSE 等接口。
 - `service` / `service.impl`：业务逻辑。
 - `ai`：AI 代码生成服务、模型路由、工具调用、护栏。
 - `core`：代码解析、保存、Vue 项目构建、流式处理。
@@ -207,8 +207,6 @@
 - `/api/user`：注册、登录、退出、当前用户、用户管理。
 - `/api/app`：创建应用、生成代码、部署、下载、应用列表、管理端应用操作。
 - `/api/chatHistory`：应用聊天历史、管理端聊天记录分页。
-- `/api/chatGroup`：群聊相关能力。
-- `/api/chatGroupMember`：群成员相关能力。
 - `/api/static`：访问生成应用静态资源。
 - `/api/workflow`：工作流执行与 SSE/Flux 流式测试。
 - `/api/health`：健康检查。
@@ -229,16 +227,6 @@
 - `user`：用户。
 - `app`：应用。
 - `chat_history`：聊天历史。
-- `chat_group`：群聊房间。
-- `chat_group_member`：群成员关系。
-
-脚本中还包含对 `chat_history` 的群聊相关字段和索引扩展：
-
-- `groupId`
-- `migrateFlag`
-- `idx_single_chat`
-- `idx_group_chat`
-- `idx_migrateFlag`
 
 ## 本地运行
 

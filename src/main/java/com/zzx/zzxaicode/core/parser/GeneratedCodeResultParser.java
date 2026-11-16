@@ -1,6 +1,5 @@
 package com.zzx.zzxaicode.core.parser;
 
-import cn.hutool.json.JSONUtil;
 import com.zzx.zzxaicode.ai.common.model.HtmlCodeResult;
 import com.zzx.zzxaicode.ai.common.model.MultiFileCodeResult;
 import com.zzx.zzxaicode.exception.BusinessException;
@@ -9,7 +8,7 @@ import com.zzx.zzxaicode.model.enums.CodeGenTypeEnum;
 
 import java.util.regex.Pattern;
 
-/** 接收文本代码块或结构化 JSON，并在保存前校验页面必需内容。 */
+/** 解析提示词约定的代码块，并在保存前校验页面必需内容。 */
 public final class GeneratedCodeResultParser {
     private static final Pattern RESOURCE_TAG = Pattern.compile("<(link|script)\\b[^>]*>", Pattern.CASE_INSENSITIVE);
     private static final Pattern RESOURCE_ATTRIBUTE = Pattern.compile(
@@ -22,31 +21,17 @@ public final class GeneratedCodeResultParser {
      * @param text 完整模型输出
      * @param type HTML 或多文件类型
      * @return 公共代码结果 DTO；CSS/JS 为可选字段
-     * @throws BusinessException JSON 无效、必需 HTML 为空或引用的本地 CSS/JS 内容缺失
+     * @throws BusinessException 输出为空、必需 HTML 无效或引用的本地 CSS/JS 内容缺失
      */
     public static Object parse(String text, CodeGenTypeEnum type) {
         if (text == null || text.isBlank()) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "模型未返回可保存的代码");
         }
-        String source = text.trim();
-        // 先剥掉完整的 JSON 围栏，避免将结构化结果误交给 HTML/CSS/JS 代码块解析器。
-        if (source.startsWith("```json") && source.endsWith("```")) {
-            source = source.substring(7, source.length() - 3).trim();
-        }
-        Object parsed;
-        try {
-            // JSON 映射到公共 DTO；代码块输出继续使用原有解析器，两条路径共享后续保存前校验。
-            parsed = source.startsWith("{") ? switch (type) {
-                case HTML -> JSONUtil.toBean(source, HtmlCodeResult.class);
-                case MULTI_FILE -> JSONUtil.toBean(source, MultiFileCodeResult.class);
-                default -> throw new BusinessException(ErrorCode.PARAMS_ERROR, "不支持的解析类型");
-            } : CodeParserExecutor.executeParser(source, type);
-        } catch (Exception e) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "模型代码结果解析失败");
-        }
+        Object parsed = CodeParserExecutor.executeParser(text.trim(), type);
         String html = parsed instanceof HtmlCodeResult result ? result.getHtmlCode()
                 : parsed instanceof MultiFileCodeResult result ? result.getHtmlCode() : null;
-        if (html == null || html.isBlank() || !html.contains("<")) {
+        // HTML 解析器允许直接返回页面原文；正文必须以标签开头，避免 JSON 或解释文字被保存成页面。
+        if (html == null || !html.stripLeading().startsWith("<")) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "模型代码缺少有效 HTML 内容");
         }
         if (parsed instanceof MultiFileCodeResult result) {

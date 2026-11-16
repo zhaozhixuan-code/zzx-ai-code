@@ -35,14 +35,21 @@ class SpringAiBoundaryTest {
         assertDoesNotThrow(() -> PromptSafetyValidator.validate("创建一个会员展示页面"));
     }
 
-    /** 普通生成支持代码块和结构化结果，缺少页面内容时不能报告保存成功。 */
+    /** 普通生成按代码块解析，HTML 可直接返回页面原文；JSON DTO 不属于生成协议。 */
     @Test
-    void resultParsingHandlesMarkdownAndJsonAndRejectsMissingHtml() {
+    void resultParsingUsesCodeBlocksAndRejectsJsonOrMissingHtml() {
         HtmlCodeResult html = (HtmlCodeResult) GeneratedCodeResultParser.parse("```html\n<h1>ok</h1>\n```", CodeGenTypeEnum.HTML);
         assertEquals("<h1>ok</h1>", html.getHtmlCode());
         MultiFileCodeResult multi = (MultiFileCodeResult) GeneratedCodeResultParser.parse(
-                "{\"htmlCode\":\"<main>ok</main>\",\"cssCode\":\"main{}\",\"jsCode\":\"\"}", CodeGenTypeEnum.MULTI_FILE);
+                "```html\n<main>ok</main>\n```\n```css\nmain{}\n```", CodeGenTypeEnum.MULTI_FILE);
         assertEquals("main{}", multi.getCssCode());
+        assertEquals("<main>raw</main>", ((HtmlCodeResult) GeneratedCodeResultParser.parse(
+                "<main>raw</main>", CodeGenTypeEnum.HTML)).getHtmlCode());
+        for (CodeGenTypeEnum type : java.util.List.of(CodeGenTypeEnum.HTML, CodeGenTypeEnum.MULTI_FILE)) {
+            String json = "{\"htmlCode\":\"<main>json</main>\"}";
+            assertThrows(BusinessException.class, () -> GeneratedCodeResultParser.parse(json, type));
+            assertThrows(BusinessException.class, () -> GeneratedCodeResultParser.parse("```json\n" + json + "\n```", type));
+        }
         assertThrows(BusinessException.class, () -> GeneratedCodeResultParser.parse("{}", CodeGenTypeEnum.MULTI_FILE));
         assertThrows(BusinessException.class, () -> GeneratedCodeResultParser.parse("```css\nbody{}\n```", CodeGenTypeEnum.MULTI_FILE));
         assertThrows(BusinessException.class, () -> GeneratedCodeResultParser.parse("", CodeGenTypeEnum.HTML));
@@ -68,6 +75,6 @@ class SpringAiBoundaryTest {
                 "```html\n<main><!-- <link href=style.css> --><script src=\"https://example.invalid/script.js\"></script></main>\n```",
                 CodeGenTypeEnum.MULTI_FILE));
         assertThrows(BusinessException.class, () -> GeneratedCodeResultParser.parse(
-                "{\"htmlCode\":\"<link href=style.css><h1>ok</h1>\",\"cssCode\":\"   \"}", CodeGenTypeEnum.MULTI_FILE));
+                "```html\n<link href=style.css><h1>ok</h1>\n```\n```css\n   \n```", CodeGenTypeEnum.MULTI_FILE));
     }
 }

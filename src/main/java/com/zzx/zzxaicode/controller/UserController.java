@@ -1,7 +1,7 @@
 package com.zzx.zzxaicode.controller;
 
 import cn.hutool.core.bean.BeanUtil;
-import com.mybatisflex.core.paginate.Page;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.zzx.zzxaicode.annotation.AuthCheck;
 import com.zzx.zzxaicode.common.BaseResponse;
 import com.zzx.zzxaicode.common.DeleteRequest;
@@ -175,7 +175,7 @@ public class UserController {
         Page<User> userPage = userService.page(Page.of(pageNum, pageSize),
                 userService.getQueryWrapper(userQueryRequest));
         // 数据脱敏
-        Page<UserVO> userVOPage = new Page<>(pageNum, pageSize, userPage.getTotalRow());
+        Page<UserVO> userVOPage = new Page<>(pageNum, pageSize, userPage.getTotal());
         List<UserVO> userVOList = userService.getUserVOList(userPage.getRecords());
         userVOPage.setRecords(userVOList);
         return ResultUtils.success(userVOPage);

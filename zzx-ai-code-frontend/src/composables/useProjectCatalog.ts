@@ -55,7 +55,7 @@ export function useProjectCatalog(
       if (response.data.code !== 0 || !response.data.data) {
         throw new Error(response.data.message || '项目暂时无法加载，请重试')
       }
-      total.value = response.data.data.totalRow ?? 0
+      total.value = response.data.data.total ?? 0
       const lastPage = Math.max(1, Math.ceil(total.value / pageSize))
       // 删除项目或旧书签可能使当前页越界，回到仍然存在的最后一页。
       if (currentPage.value > lastPage) {

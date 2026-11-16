@@ -3,8 +3,8 @@ package com.zzx.zzxaicode.controller;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
-import com.mybatisflex.core.paginate.Page;
-import com.mybatisflex.core.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.zzx.zzxaicode.annotation.AuthCheck;
 import com.zzx.zzxaicode.common.BaseResponse;
 import com.zzx.zzxaicode.common.DeleteRequest;
@@ -259,10 +259,10 @@ public class AppController {
         long pageNum = appQueryRequest.getPageNum();
         // 只查询当前用户的应用
         appQueryRequest.setUserId(loginUser.getId());
-        QueryWrapper queryWrapper = appService.getQueryWrapper(appQueryRequest);
+        QueryWrapper<App> queryWrapper = appService.getQueryWrapper(appQueryRequest);
         Page<App> appPage = appService.page(Page.of(pageNum, pageSize), queryWrapper);
         // 数据封装
-        Page<AppVO> appVOPage = new Page<>(pageNum, pageSize, appPage.getTotalRow());
+        Page<AppVO> appVOPage = new Page<>(pageNum, pageSize, appPage.getTotal());
         List<AppVO> appVOList = appService.getAppVOList(appPage.getRecords());
         appVOPage.setRecords(appVOList);
         return ResultUtils.success(appVOPage);
@@ -285,12 +285,11 @@ public class AppController {
 
         // 部署流程复制文件成功后会同时写入部署标识与时间；草稿和空标识不进入公开列表。
         // 固定查询与排序，不接受用户、精选优先级或客户端排序条件。
-        QueryWrapper queryWrapper = QueryWrapper.create()
-                .where("deployKey IS NOT NULL AND TRIM(deployKey) <> '' AND deployedTime IS NOT NULL")
-                .orderBy("deployedTime", false)
-                .orderBy("id", false);
+        QueryWrapper<App> queryWrapper = new QueryWrapper<App>()
+                .apply("deployKey IS NOT NULL AND TRIM(deployKey) <> '' AND deployedTime IS NOT NULL")
+                .orderByDesc("deployedTime", "id");
         Page<App> appPage = appService.page(Page.of(pageNum, pageSize), queryWrapper);
-        Page<AppVO> appVOPage = new Page<>(pageNum, pageSize, appPage.getTotalRow());
+        Page<AppVO> appVOPage = new Page<>(pageNum, pageSize, appPage.getTotal());
         List<AppVO> appVOList = appService.getAppVOList(appPage.getRecords());
         // 首页仅展示项目元信息，不公开创建者的原始需求。
         appVOList.forEach(appVO -> appVO.setInitPrompt(null));
@@ -318,11 +317,11 @@ public class AppController {
         long pageNum = appQueryRequest.getPageNum();
         // 只查询精选的应用
         appQueryRequest.setPriority(AppConstant.GOOD_APP_PRIORITY);
-        QueryWrapper queryWrapper = appService.getQueryWrapper(appQueryRequest);
+        QueryWrapper<App> queryWrapper = appService.getQueryWrapper(appQueryRequest);
         // 分页查询
         Page<App> appPage = appService.page(Page.of(pageNum, pageSize), queryWrapper);
         // 数据封装
-        Page<AppVO> appVOPage = new Page<>(pageNum, pageSize, appPage.getTotalRow());
+        Page<AppVO> appVOPage = new Page<>(pageNum, pageSize, appPage.getTotal());
         List<AppVO> appVOList = appService.getAppVOList(appPage.getRecords());
         appVOPage.setRecords(appVOList);
         return ResultUtils.success(appVOPage);
@@ -385,10 +384,10 @@ public class AppController {
         ThrowUtils.throwIf(appQueryRequest == null, ErrorCode.PARAMS_ERROR);
         long pageNum = appQueryRequest.getPageNum();
         long pageSize = appQueryRequest.getPageSize();
-        QueryWrapper queryWrapper = appService.getQueryWrapper(appQueryRequest);
+        QueryWrapper<App> queryWrapper = appService.getQueryWrapper(appQueryRequest);
         Page<App> appPage = appService.page(Page.of(pageNum, pageSize), queryWrapper);
         // 数据封装
-        Page<AppVO> appVOPage = new Page<>(pageNum, pageSize, appPage.getTotalRow());
+        Page<AppVO> appVOPage = new Page<>(pageNum, pageSize, appPage.getTotal());
         List<AppVO> appVOList = appService.getAppVOList(appPage.getRecords());
         appVOPage.setRecords(appVOList);
         return ResultUtils.success(appVOPage);

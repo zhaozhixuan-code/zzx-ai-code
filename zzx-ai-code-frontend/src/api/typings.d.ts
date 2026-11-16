@@ -228,20 +228,20 @@ declare namespace API {
 
   type PageAppVO = {
     records?: AppVO[]
-    pageNumber?: number
-    pageSize?: number
-    totalPage?: number
-    totalRow?: number
-    optimizeCountQuery?: boolean
+    current?: number
+    size?: number
+    pages?: number
+    total?: number
+    optimizeCountSql?: boolean
   }
 
   type PageChatHistory = {
     records?: ChatHistory[]
-    pageNumber?: number
-    pageSize?: number
-    totalPage?: number
-    totalRow?: number
-    optimizeCountQuery?: boolean
+    current?: number
+    size?: number
+    pages?: number
+    total?: number
+    optimizeCountSql?: boolean
   }
 
   type pageParams = {
@@ -250,20 +250,20 @@ declare namespace API {
 
   type PageUser = {
     records?: User[]
-    pageNumber?: number
-    pageSize?: number
-    totalPage?: number
-    totalRow?: number
-    optimizeCountQuery?: boolean
+    current?: number
+    size?: number
+    pages?: number
+    total?: number
+    optimizeCountSql?: boolean
   }
 
   type PageUserVO = {
     records?: UserVO[]
-    pageNumber?: number
-    pageSize?: number
-    totalPage?: number
-    totalRow?: number
-    optimizeCountQuery?: boolean
+    current?: number
+    size?: number
+    pages?: number
+    total?: number
+    optimizeCountSql?: boolean
   }
 
   type QualityResult = {

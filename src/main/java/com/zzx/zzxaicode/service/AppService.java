@@ -1,7 +1,7 @@
 package com.zzx.zzxaicode.service;
 
-import com.mybatisflex.core.query.QueryWrapper;
-import com.mybatisflex.core.service.IService;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.service.IService;
 import com.zzx.zzxaicode.model.dto.app.AppAddRequest;
 import com.zzx.zzxaicode.model.dto.app.AppQueryRequest;
 import com.zzx.zzxaicode.model.po.App;
@@ -51,7 +51,7 @@ public interface AppService extends IService<App> {
      * @param appQueryRequest
      * @return
      */
-    QueryWrapper getQueryWrapper(AppQueryRequest appQueryRequest);
+    QueryWrapper<App> getQueryWrapper(AppQueryRequest appQueryRequest);
 
     /**
      * 获取应用封装列表

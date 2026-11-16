@@ -127,3 +127,8 @@ management:
   endpoint:
     health:
       show-details: always
+
+# 表列名使用驼峰形式，保持与实体字段一致。
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: false

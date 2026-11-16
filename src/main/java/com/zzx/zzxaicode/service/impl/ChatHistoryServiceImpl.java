@@ -1,9 +1,9 @@
 package com.zzx.zzxaicode.service.impl;
 
 import cn.hutool.core.util.StrUtil;
-import com.mybatisflex.core.paginate.Page;
-import com.mybatisflex.core.query.QueryWrapper;
-import com.mybatisflex.spring.service.impl.ServiceImpl;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zzx.zzxaicode.exception.ErrorCode;
 import com.zzx.zzxaicode.exception.ThrowUtils;
 import com.zzx.zzxaicode.model.chathistory.ChatHistoryQueryRequest;
@@ -79,10 +79,10 @@ public class ChatHistoryServiceImpl extends ServiceImpl<ChatHistoryMapper, ChatH
     @Override
     public int loadChatHistoryToMemory(Long appid, MessageWindowChatMemory chatMemory, int maxCount) {
         // 构造查询条件
-        QueryWrapper queryWrapper = QueryWrapper.create()
-                .eq(ChatHistory::getAppId, appid)
-                .orderBy(ChatHistory::getCreateTime, false)
-                .limit(maxCount);
+        QueryWrapper<ChatHistory> queryWrapper = new QueryWrapper<ChatHistory>()
+                .eq("appId", appid)
+                .orderByDesc("createTime")
+                .last("LIMIT " + maxCount);
         List<ChatHistory> chatHistoryList = this.list(queryWrapper);
         if (chatHistoryList.isEmpty()) {
             return 0;
@@ -116,7 +116,7 @@ public class ChatHistoryServiceImpl extends ServiceImpl<ChatHistoryMapper, ChatH
     @Override
     public boolean deleteByAppId(Long appId) {
         ThrowUtils.throwIf(appId == null || appId <= 0, ErrorCode.PARAMS_ERROR, "应用 ID 不能为空");
-        return this.remove(QueryWrapper.create().eq("appId", appId));
+        return this.remove(new QueryWrapper<ChatHistory>().eq("appId", appId));
     }
 
 
@@ -157,8 +157,8 @@ public class ChatHistoryServiceImpl extends ServiceImpl<ChatHistoryMapper, ChatH
      * @return
      */
     @Override
-    public QueryWrapper getQueryWrapper(ChatHistoryQueryRequest chatHistoryQueryRequest) {
-        QueryWrapper queryWrapper = QueryWrapper.create();
+    public QueryWrapper<ChatHistory> getQueryWrapper(ChatHistoryQueryRequest chatHistoryQueryRequest) {
+        QueryWrapper<ChatHistory> queryWrapper = new QueryWrapper<>();
         if (chatHistoryQueryRequest == null) {
             return queryWrapper;
         }
@@ -171,21 +171,21 @@ public class ChatHistoryServiceImpl extends ServiceImpl<ChatHistoryMapper, ChatH
         String sortField = chatHistoryQueryRequest.getSortField();
         String sortOrder = chatHistoryQueryRequest.getSortOrder();
         // 拼接查询条件
-        queryWrapper.eq("id", id)
-                .like("message", message)
-                .eq("messageType", messageType)
-                .eq("appId", appId)
-                .eq("userId", userId);
+        queryWrapper.eq(id != null, "id", id)
+                .like(StrUtil.isNotBlank(message), "message", message)
+                .eq(StrUtil.isNotBlank(messageType), "messageType", messageType)
+                .eq(appId != null, "appId", appId)
+                .eq(userId != null, "userId", userId);
         // 游标查询逻辑 - 只使用 createTime 作为游标
         if (lastCreateTime != null) {
             queryWrapper.lt("createTime", lastCreateTime);
         }
         // 排序
         if (StrUtil.isNotBlank(sortField)) {
-            queryWrapper.orderBy(sortField, "ascend".equals(sortOrder));
+            queryWrapper.orderBy(StrUtil.isNotBlank(sortField), "ascend".equals(sortOrder), sortField);
         } else {
             // 默认按创建时间降序排列
-            queryWrapper.orderBy("createTime", false);
+            queryWrapper.orderByDesc("createTime");
         }
         return queryWrapper;
     }

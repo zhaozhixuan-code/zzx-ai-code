@@ -6,8 +6,8 @@ import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.IORuntimeException;
 import cn.hutool.core.util.RandomUtil;
 import cn.hutool.core.util.StrUtil;
-import com.mybatisflex.core.query.QueryWrapper;
-import com.mybatisflex.spring.service.impl.ServiceImpl;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zzx.zzxaicode.ai.AiCodeGenTypeRoutingService;
 import com.zzx.zzxaicode.ai.AiCodeGenTypeRoutingServiceFactory;
 import com.zzx.zzxaicode.constants.AppConstant;
@@ -210,7 +210,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
      * @return
      */
     @Override
-    public QueryWrapper getQueryWrapper(AppQueryRequest appQueryRequest) {
+    public QueryWrapper<App> getQueryWrapper(AppQueryRequest appQueryRequest) {
         if (appQueryRequest == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "请求参数为空");
         }
@@ -224,16 +224,17 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         Long userId = appQueryRequest.getUserId();
         String sortField = appQueryRequest.getSortField();
         String sortOrder = appQueryRequest.getSortOrder();
-        return QueryWrapper.create()
-                .eq("id", id)
-                .like("appName", appName)
-                .like("cover", cover)
-                .like("initPrompt", initPrompt)
-                .eq("codeGenType", codeGenType)
-                .eq("deployKey", deployKey)
-                .eq("priority", priority)
-                .eq("userId", userId)
-                .orderBy(sortField, "ascend".equals(sortOrder));
+        // 空查询项不参与过滤。
+        return new QueryWrapper<App>()
+                .eq(id != null, "id", id)
+                .like(StrUtil.isNotBlank(appName), "appName", appName)
+                .like(StrUtil.isNotBlank(cover), "cover", cover)
+                .like(StrUtil.isNotBlank(initPrompt), "initPrompt", initPrompt)
+                .eq(StrUtil.isNotBlank(codeGenType), "codeGenType", codeGenType)
+                .eq(StrUtil.isNotBlank(deployKey), "deployKey", deployKey)
+                .eq(priority != null, "priority", priority)
+                .eq(userId != null, "userId", userId)
+                .orderBy(StrUtil.isNotBlank(sortField), "ascend".equals(sortOrder), sortField);
     }
 
     /**

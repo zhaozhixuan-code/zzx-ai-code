@@ -1,7 +1,7 @@
 package com.zzx.zzxaicode.mapper;
 
 
-import com.mybatisflex.core.BaseMapper;
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.zzx.zzxaicode.model.po.User;
 
 /**

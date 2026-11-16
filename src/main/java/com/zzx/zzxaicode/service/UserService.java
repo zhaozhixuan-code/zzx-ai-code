@@ -1,8 +1,8 @@
 package com.zzx.zzxaicode.service;
 
 
-import com.mybatisflex.core.query.QueryWrapper;
-import com.mybatisflex.core.service.IService;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.service.IService;
 import com.zzx.zzxaicode.model.dto.user.UserQueryRequest;
 import com.zzx.zzxaicode.model.po.User;
 import com.zzx.zzxaicode.model.vo.LoginUserVO;
@@ -75,5 +75,5 @@ public interface UserService extends IService<User> {
 
     List<UserVO> getUserVOList(List<User> userList);
 
-    QueryWrapper getQueryWrapper(UserQueryRequest userQueryRequest);
+    QueryWrapper<User> getQueryWrapper(UserQueryRequest userQueryRequest);
 }

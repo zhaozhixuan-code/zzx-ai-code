@@ -1,16 +1,17 @@
 package com.zzx.zzxaicode.model.po;
 
-import com.mybatisflex.annotation.Column;
-import com.mybatisflex.annotation.Id;
-import com.mybatisflex.annotation.KeyType;
-import com.mybatisflex.annotation.Table;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableLogic;
+import com.baomidou.mybatisplus.annotation.TableName;
+
 
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
 import java.io.Serial;
 
-import com.mybatisflex.core.keygen.KeyGenerators;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -26,7 +27,7 @@ import org.aspectj.apache.bcel.generic.IINC;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Table("chat_history")
+@TableName("chat_history")
 public class ChatHistory implements Serializable {
 
     @Serial
@@ -35,7 +36,7 @@ public class ChatHistory implements Serializable {
     /**
      * id
      */
-    @Id(keyType = KeyType.Generator, value = KeyGenerators.snowFlakeId)
+    @TableId(type = IdType.ASSIGN_ID)
     private Long id;
 
     /**
@@ -46,37 +47,38 @@ public class ChatHistory implements Serializable {
     /**
      * user/ai
      */
-    @Column("messageType")
+    @TableField("messageType")
     private String messageType;
 
     /**
      * 应用id
      */
-    @Column("appId")
+    @TableField("appId")
     private Long appId;
 
     /**
      * 创建用户id
      */
-    @Column("userId")
+    @TableField("userId")
     private Long userId;
 
     /**
      * 创建时间
      */
-    @Column("createTime")
+    @TableField("createTime")
     private LocalDateTime createTime;
 
     /**
      * 更新时间
      */
-    @Column("updateTime")
+    @TableField("updateTime")
     private LocalDateTime updateTime;
 
     /**
      * 是否删除
      */
-    @Column(value = "isDelete", isLogicDelete = true)
+    @TableLogic
+    @TableField("isDelete")
     private Integer isDelete;
 
 }

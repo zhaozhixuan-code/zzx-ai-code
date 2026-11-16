@@ -1,8 +1,8 @@
 package com.zzx.zzxaicode.service;
 
-import com.mybatisflex.core.paginate.Page;
-import com.mybatisflex.core.query.QueryWrapper;
-import com.mybatisflex.core.service.IService;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.service.IService;
 import com.zzx.zzxaicode.model.chathistory.ChatHistoryQueryRequest;
 import com.zzx.zzxaicode.model.po.ChatHistory;
 import com.zzx.zzxaicode.model.po.User;
@@ -64,6 +64,6 @@ public interface ChatHistoryService extends IService<ChatHistory> {
      * @param chatHistoryQueryRequest
      * @return
      */
-    QueryWrapper getQueryWrapper(ChatHistoryQueryRequest chatHistoryQueryRequest);
+    QueryWrapper<ChatHistory> getQueryWrapper(ChatHistoryQueryRequest chatHistoryQueryRequest);
 
 }

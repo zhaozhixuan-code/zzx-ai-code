@@ -209,6 +209,31 @@ class SpringAiProtocolTest {
         verify(repository).save(11, history);
     }
 
+    /** 未声明工具属于无效模型协议，应结束请求，不能编造执行结果后反复调用模型。 */
+    @Test
+    void undeclaredToolStopsWithoutFabricatedResultOrContinuation() {
+        var repository = mock(SpringAiConversationRepository.class);
+        when(repository.load(11, "创建页面")).thenReturn(new ArrayList<>(List.of(new UserMessage("创建页面"))));
+        var callbacks = mock(SpringAiToolCallbacks.class);
+        when(callbacks.forApp(11)).thenReturn(Map.of());
+        var call = new AssistantMessage.ToolCall("unknown_1", "function", "unknownTool", "{}");
+        ChatModel model = mock(ChatModel.class);
+        when(model.stream(any(Prompt.class))).thenReturn(Flux.just(new ChatResponse(List.of(new Generation(
+                AssistantMessage.builder().content("").toolCalls(List.of(call)).build(),
+                ChatGenerationMetadata.builder().finishReason("TOOL_CALLS").build())))));
+        var settings = new SpringAiProperties();
+        settings.setMaxToolRounds(2);
+        var generator = new SpringAiCodeGenerator(model, model, new SpringAiPromptLoader(), repository, callbacks, settings);
+        List<String> events = new CopyOnWriteArrayList<>();
+        BusinessException error = assertThrows(BusinessException.class, () -> generator
+                .stream(11, "创建页面", CodeGenTypeEnum.VUE_PROJECT).doOnNext(events::add)
+                .blockLast(Duration.ofSeconds(3)));
+        assertTrue(error.getMessage().contains("未声明的工具"));
+        assertFalse(events.stream().anyMatch(event -> event.contains("tool_executed")));
+        verify(model, times(1)).stream(any(Prompt.class));
+        verify(repository, never()).save(anyLong(), anyList());
+    }
+
     /** 页面收到首片段就取消时，不等待模型完成、不追加 assistant，也不保存半轮记忆。 */
     @Test
     void cancellationDoesNotCommitAggregatedMemory() {

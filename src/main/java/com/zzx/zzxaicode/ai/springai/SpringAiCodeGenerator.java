@@ -148,6 +148,7 @@ public class SpringAiCodeGenerator implements AiCodeGenerator {
      * @param tools 本应用工具表
      * @param round 已完成的模型请求数，最终无工具续答也占用一次请求额度
      * @return 文本、工具请求、工具执行事件及最终续答
+     * @throws BusinessException 模型请求超过上限或模型返回本轮未声明的工具，异常通过流传播
      */
     private Flux<String> round(long appId, String userId, List<Message> history,
                                 Map<String, ToolCallback> tools, int round) {
@@ -166,7 +167,11 @@ public class SpringAiCodeGenerator implements AiCodeGenerator {
                     // 文件工具可能依赖上一工具的写入结果，必须顺序执行，不能并发打乱目录状态。
                     return Flux.fromIterable(calls).concatMap(call -> Mono.fromCallable(() -> {
                         ToolCallback callback = tools.get(call.name());
-                        String result = callback == null ? "错误：不存在工具 " + call.name() : callback.call(call.arguments());
+                        // 未声明工具是协议错误，不能伪装成已执行结果交回模型继续循环。
+                        if (callback == null) {
+                            throw new BusinessException(ErrorCode.OPERATION_ERROR, "模型返回了未声明的工具：" + call.name());
+                        }
+                        String result = callback.call(call.arguments());
                         results.add(new ToolResponseMessage.ToolResponse(call.id(), call.name(), result));
                         return toolEvent("tool_executed", call, result);
                     }).subscribeOn(Schedulers.boundedElastic()))

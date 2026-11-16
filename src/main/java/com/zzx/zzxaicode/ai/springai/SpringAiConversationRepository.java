@@ -110,14 +110,6 @@ public class SpringAiConversationRepository {
     }
 
     /**
-     * 删除应用时同步移除新模型上下文。
-     * @param appId 已完成权限校验的应用 ID
-     */
-    public void evict(long appId) {
-        redis.delete(PREFIX + appId);
-    }
-
-    /**
      * 将 Spring AI 类型转换为稳定的缓存载荷。
      * @param message 模型消息
      * @return 不含框架多态元数据的缓存记录

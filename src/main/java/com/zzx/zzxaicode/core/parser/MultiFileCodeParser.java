@@ -1,6 +1,6 @@
 package com.zzx.zzxaicode.core.parser;
 
-import com.zzx.zzxaicode.ai.model.MultiFileCodeResult;
+import com.zzx.zzxaicode.ai.common.model.MultiFileCodeResult;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;

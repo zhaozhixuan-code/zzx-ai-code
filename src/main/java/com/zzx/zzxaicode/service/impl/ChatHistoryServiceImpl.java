@@ -15,9 +15,6 @@ import com.zzx.zzxaicode.mapper.ChatHistoryMapper;
 import com.zzx.zzxaicode.model.po.User;
 import com.zzx.zzxaicode.service.AppService;
 import com.zzx.zzxaicode.service.ChatHistoryService;
-import dev.langchain4j.data.message.AiMessage;
-import dev.langchain4j.data.message.UserMessage;
-import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
@@ -69,43 +66,20 @@ public class ChatHistoryServiceImpl extends ServiceImpl<ChatHistoryMapper, ChatH
     }
 
     /**
-     * 获取对话消息
-     *
-     * @param appid      应用ID
-     * @param chatMemory 会话内存
-     * @param maxCount   最大数量
-     * @return 获得到的对话数量
+     * 按应用查询最近可见历史，再转为稳定的时间升序。
+     * @param appId 应用 ID
+     * @param maxCount 最大消息数，必须大于零
+     * @return 按创建时间和 ID 升序排列的历史
      */
     @Override
-    public int loadChatHistoryToMemory(Long appid, MessageWindowChatMemory chatMemory, int maxCount) {
-        // 构造查询条件
-        QueryWrapper<ChatHistory> queryWrapper = new QueryWrapper<ChatHistory>()
-                .eq("appId", appid)
-                .orderByDesc("createTime")
-                .last("LIMIT " + maxCount);
-        List<ChatHistory> chatHistoryList = this.list(queryWrapper);
-        if (chatHistoryList.isEmpty()) {
-            return 0;
-        }
-        // 翻转列表
-        chatHistoryList = chatHistoryList.reversed();
-        // 先清理历史缓存
-        chatMemory.clear();
-        int count = 0;
-        for (ChatHistory chatHistory : chatHistoryList) {
-            // 添加到会话内存
-            if (ChatHistoryMessageTypeEnum.USER.getValue().equals(chatHistory.getMessageType())) {
-                chatMemory.add(UserMessage.from(chatHistory.getMessage()));
-                count++;
-            } else if (ChatHistoryMessageTypeEnum.AI.getValue().equals(chatHistory.getMessageType())) {
-                chatMemory.add(AiMessage.from(chatHistory.getMessage()));
-                count++;
-            }
-        }
-        log.info("加载了 {} 条对话消息到会话内存", count);
-        return count;
+    public List<ChatHistory> listRecentMessages(Long appId, int maxCount) {
+        ThrowUtils.throwIf(appId == null || appId <= 0, ErrorCode.PARAMS_ERROR, "应用 ID 不能为空");
+        ThrowUtils.throwIf(maxCount <= 0, ErrorCode.PARAMS_ERROR, "历史条数必须大于零");
+        return this.list(new QueryWrapper<ChatHistory>()
+                .eq("appId", appId)
+                .orderByDesc("createTime", "id")
+                .last("LIMIT " + maxCount)).reversed();
     }
-
 
     /**
      * 删除对话消息

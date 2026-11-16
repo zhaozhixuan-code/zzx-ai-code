@@ -2,13 +2,13 @@ package com.zzx.zzxaicode.core;
 
 
 import cn.hutool.json.JSONUtil;
-import com.zzx.zzxaicode.ai.AiCodeGeneratorService;
-import com.zzx.zzxaicode.ai.AiCodeGeneratorServiceFactory;
-import com.zzx.zzxaicode.ai.model.HtmlCodeResult;
-import com.zzx.zzxaicode.ai.model.MultiFileCodeResult;
-import com.zzx.zzxaicode.ai.model.message.AiResponseMessage;
-import com.zzx.zzxaicode.ai.model.message.ToolExecutedMessage;
-import com.zzx.zzxaicode.ai.model.message.ToolRequestMessage;
+import com.zzx.zzxaicode.ai.langchain.AiCodeGeneratorService;
+import com.zzx.zzxaicode.ai.langchain.AiCodeGeneratorServiceFactory;
+import com.zzx.zzxaicode.ai.common.model.HtmlCodeResult;
+import com.zzx.zzxaicode.ai.common.model.MultiFileCodeResult;
+import com.zzx.zzxaicode.ai.langchain.model.message.AiResponseMessage;
+import com.zzx.zzxaicode.ai.langchain.model.message.ToolExecutedMessage;
+import com.zzx.zzxaicode.ai.langchain.model.message.ToolRequestMessage;
 import com.zzx.zzxaicode.constants.AppConstant;
 import com.zzx.zzxaicode.core.builder.VueProjectBuilder;
 import com.zzx.zzxaicode.core.parser.CodeParserExecutor;

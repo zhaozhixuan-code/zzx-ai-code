@@ -1,7 +1,7 @@
 package com.zzx.zzxaicode.core;
 
-import com.zzx.zzxaicode.ai.model.HtmlCodeResult;
-import com.zzx.zzxaicode.ai.model.MultiFileCodeResult;
+import com.zzx.zzxaicode.ai.common.model.HtmlCodeResult;
+import com.zzx.zzxaicode.ai.common.model.MultiFileCodeResult;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;

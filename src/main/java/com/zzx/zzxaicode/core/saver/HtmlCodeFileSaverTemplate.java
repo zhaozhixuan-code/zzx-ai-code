@@ -1,7 +1,7 @@
 package com.zzx.zzxaicode.core.saver;
 
 import cn.hutool.core.util.StrUtil;
-import com.zzx.zzxaicode.ai.model.HtmlCodeResult;
+import com.zzx.zzxaicode.ai.common.model.HtmlCodeResult;
 import com.zzx.zzxaicode.exception.BusinessException;
 import com.zzx.zzxaicode.exception.ErrorCode;
 import com.zzx.zzxaicode.model.enums.CodeGenTypeEnum;

@@ -1,7 +1,7 @@
 package com.zzx.zzxaicode.langgraph4j.node;
 
 import com.zzx.zzxaicode.constants.AppConstant;
-import com.zzx.zzxaicode.core.AiCodeGeneratorFacade;
+import com.zzx.zzxaicode.ai.langchain.LegacyCodeGeneratorFacade;
 import com.zzx.zzxaicode.langgraph4j.model.QualityResult;
 import com.zzx.zzxaicode.langgraph4j.state.WorkflowContext;
 import com.zzx.zzxaicode.model.enums.CodeGenTypeEnum;
@@ -29,7 +29,7 @@ public class CodeGeneratorNode {
             String userMessage = buildUserMessage(context);
             CodeGenTypeEnum generationType = context.getGenerationType();
             // 获取 AI 代码生成外观服务
-            AiCodeGeneratorFacade codeGeneratorFacade = SpringContextUtil.getBean(AiCodeGeneratorFacade.class);
+            LegacyCodeGeneratorFacade codeGeneratorFacade = SpringContextUtil.getBean(LegacyCodeGeneratorFacade.class);
             log.info("开始生成代码，类型: {} ({})", generationType.getValue(), generationType.getText());
             // 先使用固定的 appId (后续再整合到业务中)
             Long appId = 0L;

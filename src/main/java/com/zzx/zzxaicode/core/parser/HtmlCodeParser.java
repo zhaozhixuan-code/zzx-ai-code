@@ -1,6 +1,6 @@
 package com.zzx.zzxaicode.core.parser;
 
-import com.zzx.zzxaicode.ai.model.HtmlCodeResult;
+import com.zzx.zzxaicode.ai.common.model.HtmlCodeResult;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;

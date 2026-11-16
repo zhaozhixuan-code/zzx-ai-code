@@ -1,7 +1,8 @@
-package com.zzx.zzxaicode.ai;
+package com.zzx.zzxaicode.ai.langchain;
 
-import com.zzx.zzxaicode.ai.model.HtmlCodeResult;
-import com.zzx.zzxaicode.ai.model.MultiFileCodeResult;
+import com.zzx.zzxaicode.ai.langchain.model.HtmlCodeResult;
+import com.zzx.zzxaicode.ai.langchain.model.MultiFileCodeResult;
+import com.zzx.zzxaicode.ai.langchain.AiCodeGeneratorService;
 import jakarta.annotation.Resource;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;

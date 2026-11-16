@@ -1,7 +1,7 @@
 package com.zzx.zzxaicode.langgraph4j.node;
 
-import com.zzx.zzxaicode.ai.AiCodeGenTypeRoutingService;
-import com.zzx.zzxaicode.ai.AiCodeGenTypeRoutingServiceFactory;
+import com.zzx.zzxaicode.ai.langchain.AiCodeGenTypeRoutingService;
+import com.zzx.zzxaicode.ai.langchain.AiCodeGenTypeRoutingServiceFactory;
 import com.zzx.zzxaicode.langgraph4j.state.WorkflowContext;
 import com.zzx.zzxaicode.model.enums.CodeGenTypeEnum;
 import com.zzx.zzxaicode.utils.SpringContextUtil;

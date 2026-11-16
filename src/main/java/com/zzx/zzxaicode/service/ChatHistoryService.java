@@ -6,9 +6,9 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.zzx.zzxaicode.model.chathistory.ChatHistoryQueryRequest;
 import com.zzx.zzxaicode.model.po.ChatHistory;
 import com.zzx.zzxaicode.model.po.User;
-import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 对话历史 服务层。
@@ -29,14 +29,13 @@ public interface ChatHistoryService extends IService<ChatHistory> {
     boolean addChatMessage(Long appId, String message, String messageType, Long userId);
 
     /**
-     * 获取对话消息
+     * 查询应用最近的可见历史，不进行框架消息转换。
      *
-     * @param appid      应用ID
-     * @param chatMemory 会话内存
-     * @param maxCount   最大数量
-     * @return 获得到的对话数量
+     * @param appId 应用 ID
+     * @param maxCount 最大消息数，必须大于零
+     * @return 按创建时间及 ID 升序排列的历史；无历史时返回空列表
      */
-    int loadChatHistoryToMemory(Long appid, MessageWindowChatMemory chatMemory, int maxCount);
+    List<ChatHistory> listRecentMessages(Long appId, int maxCount);
 
     /**
      * 删除对话消息

@@ -2,8 +2,8 @@ package com.zzx.zzxaicode.core;
 
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.IdUtil;
-import com.zzx.zzxaicode.ai.model.HtmlCodeResult;
-import com.zzx.zzxaicode.ai.model.MultiFileCodeResult;
+import com.zzx.zzxaicode.ai.common.model.HtmlCodeResult;
+import com.zzx.zzxaicode.ai.common.model.MultiFileCodeResult;
 import com.zzx.zzxaicode.model.enums.CodeGenTypeEnum;
 
 import java.io.File;

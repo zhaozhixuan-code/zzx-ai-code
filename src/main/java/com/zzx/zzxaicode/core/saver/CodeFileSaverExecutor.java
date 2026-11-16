@@ -1,7 +1,7 @@
 package com.zzx.zzxaicode.core.saver;
 
-import com.zzx.zzxaicode.ai.model.HtmlCodeResult;
-import com.zzx.zzxaicode.ai.model.MultiFileCodeResult;
+import com.zzx.zzxaicode.ai.common.model.HtmlCodeResult;
+import com.zzx.zzxaicode.ai.common.model.MultiFileCodeResult;
 import com.zzx.zzxaicode.model.enums.CodeGenTypeEnum;
 
 import java.io.File;

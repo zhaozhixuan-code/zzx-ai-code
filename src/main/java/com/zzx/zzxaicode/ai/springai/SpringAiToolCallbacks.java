@@ -1,5 +1,6 @@
 package com.zzx.zzxaicode.ai.springai;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zzx.zzxaicode.ai.common.ProjectFileOperations;
@@ -81,12 +82,12 @@ public class SpringAiToolCallbacks {
                             return "错误：工具参数包含未声明的字段";
                         }
                         return files.execute(appId, name, arguments);
-                    } catch (Exception e) {
+                    } catch (JsonProcessingException e) {
                         return "错误：工具参数必须是有效 JSON 对象";
                     }
                 }
             });
-        } catch (Exception e) {
+        } catch (JsonProcessingException e) {
             throw new IllegalStateException("工具定义创建失败", e);
         }
     }

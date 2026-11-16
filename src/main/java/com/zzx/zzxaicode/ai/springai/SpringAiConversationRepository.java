@@ -1,5 +1,6 @@
 package com.zzx.zzxaicode.ai.springai;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zzx.zzxaicode.config.springai.SpringAiProperties;
@@ -53,7 +54,7 @@ public class SpringAiConversationRepository {
                 for (StoredMessage item : mapper.readValue(cached, new TypeReference<List<StoredMessage>>() { })) {
                     messages.add(fromStored(item));
                 }
-            } catch (Exception e) {
+            } catch (JsonProcessingException | IllegalArgumentException e) {
                 throw new BusinessException(ErrorCode.SYSTEM_ERROR, "模型上下文读取失败");
             }
         } else {
@@ -104,7 +105,7 @@ public class SpringAiConversationRepository {
         try {
             List<StoredMessage> stored = window.stream().map(this::toStored).toList();
             redis.opsForValue().set(PREFIX + appId, mapper.writeValueAsString(stored), properties.getMemoryTtl());
-        } catch (Exception e) {
+        } catch (JsonProcessingException e) {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "模型上下文保存失败");
         }
     }

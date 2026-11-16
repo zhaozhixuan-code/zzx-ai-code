@@ -8,8 +8,7 @@ import cn.hutool.core.util.RandomUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.zzx.zzxaicode.ai.langchain.AiCodeGenTypeRoutingService;
-import com.zzx.zzxaicode.ai.langchain.AiCodeGenTypeRoutingServiceFactory;
+import com.zzx.zzxaicode.ai.common.CodeGenTypeRouter;
 import com.zzx.zzxaicode.constants.AppConstant;
 import com.zzx.zzxaicode.core.AiCodeGeneratorFacade;
 import com.zzx.zzxaicode.core.builder.VueProjectBuilder;
@@ -86,7 +85,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
     private ScreenshotService screenshotService;
 
     @Resource
-    private AiCodeGenTypeRoutingServiceFactory aiCodeGenTypeRoutingServiceFactory;
+    private CodeGenTypeRouter codeGenTypeRouter;
 
     /**
      * 获取 AI 生成代码
@@ -149,8 +148,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         // 应用名称暂时为 initPrompt 前 12 位
         app.setAppName(initPrompt.substring(0, Math.min(initPrompt.length(), 12)));
         // 使用 AI 智能选择代码生成类型
-        AiCodeGenTypeRoutingService aiCodeGenTypeRoutingService = aiCodeGenTypeRoutingServiceFactory.createAiCodeGenTypeRoutingService();
-        CodeGenTypeEnum selectedCodeGenType = aiCodeGenTypeRoutingService.routeCodeGenType(initPrompt);
+        CodeGenTypeEnum selectedCodeGenType = codeGenTypeRouter.routeCodeGenType(initPrompt);
         app.setCodeGenType(selectedCodeGenType.getValue());
         // 插入数据库
         boolean result = this.save(app);

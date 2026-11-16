@@ -503,10 +503,25 @@ const sendMessage = async () => {
   await generateCode(message, aiMessageIndex)
 }
 
-// 生成代码 - 使用 EventSource 处理流式响应
+/** 通过 SSE 接收生成结果，仅收到 done 后更新预览。
+ * @param userMessage 当前用户的生成需求。
+ * @param aiMessageIndex 本轮 AI 消息在列表中的位置。
+ * @returns 连接建立结果；生成错误由消息状态展示。
+ */
 const generateCode = async (userMessage: string, aiMessageIndex: number) => {
   let eventSource: EventSource | null = null
   let streamCompleted = false
+
+  /** 终止失败请求，阻止 EventSource 重连重发生成，并禁止迟到的 done 覆盖失败。
+   * @param error 协议解析、业务载荷或连接异常。
+   */
+  const failStream = (error: unknown) => {
+    streamCompleted = true
+    isGenerating.value = false
+    eventSource?.close()
+    if (activeEventSource === eventSource) activeEventSource = null
+    handleError(error, aiMessageIndex)
+  }
 
   try {
     // 获取 axios 配置的 baseURL
@@ -546,7 +561,7 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
         }
       } catch (error) {
         console.error('解析消息失败:', error)
-        handleError(error, aiMessageIndex)
+        failStream(error)
       }
     }
 
@@ -586,31 +601,18 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
         if (activeEventSource === eventSource) activeEventSource = null
       } catch (parseError) {
         console.error('解析错误事件失败:', parseError, '原始数据:', event.data)
-        handleError(new Error('服务器返回错误'), aiMessageIndex)
+        failStream(new Error('服务器返回错误'))
       }
     })
 
     // 处理错误
     eventSource.onerror = function () {
       if (!isChatPageActive || streamCompleted || !isGenerating.value) return
-      // 检查是否是正常的连接关闭
-      if (eventSource?.readyState === EventSource.CONNECTING) {
-        streamCompleted = true
-        isGenerating.value = false
-        eventSource?.close()
-        if (activeEventSource === eventSource) activeEventSource = null
-
-        setTimeout(async () => {
-          await fetchAppInfo()
-          updatePreview()
-        }, 1000)
-      } else {
-        handleError(new Error('SSE连接错误'), aiMessageIndex)
-      }
+      failStream(new Error('SSE连接中断，生成未完成'))
     }
   } catch (error) {
     console.error('创建 EventSource 失败：', error)
-    handleError(error, aiMessageIndex)
+    failStream(error)
   }
 }
 

@@ -3,6 +3,29 @@ spring:
     name: zzx-ai-code-backend
   profiles:
     active: local
+  ai:
+    # 使用下方显式命名的角色模型，避免与保留的 LangChain4j openAiChatModel Bean 同名。
+    model:
+      chat: none
+      embedding: none
+      image: none
+      audio:
+        transcription: none
+        speech: none
+      moderation: none
+    openai:
+      base-url: ${AI_BASE_URL:${zzx-ai-code.langchain4j.open-ai.chat-model.base-url}}
+      api-key: ${AI_API_KEY:${zzx-ai-code.langchain4j.open-ai.chat-model.api-key}}
+      chat:
+        completions-path: ${AI_COMPLETIONS_PATH:/v1/chat/completions}
+        options:
+          model: ${AI_MODEL:${zzx-ai-code.langchain4j.open-ai.chat-model.model-name}}
+          temperature: ${AI_TEMPERATURE:0.7}
+          max-tokens: ${AI_MAX_TOKENS:8192}
+          stream-usage: ${AI_STREAM_USAGE:true}
+          reasoning-effort: ${AI_REASONING_EFFORT:none}
+          http-headers:
+            Accept-Encoding: identity
   # mysql
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -31,6 +54,24 @@ server:
     session:
       cookie:
         max-age: 2592000
+
+# 新主链路角色差异均通过外部属性覆盖；空连接属性继承 spring.ai.openai 通用配置。
+app:
+  ai:
+    timeout: ${AI_TIMEOUT:180s}
+    memory-ttl: ${AI_MEMORY_TTL:3600s}
+    history-messages: 10
+    memory-messages: 50
+    max-tool-rounds: 50
+    generation:
+      model: ${AI_GENERATION_MODEL:}
+    routing:
+      model: ${AI_ROUTING_MODEL:}
+      max-tokens: 100
+      temperature: 0.1
+    vue:
+      model: ${AI_VUE_MODEL:}
+      temperature: 0.1
 
 # springdoc-openapi
 springdoc:

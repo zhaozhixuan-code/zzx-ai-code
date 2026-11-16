@@ -60,6 +60,26 @@ class SpringAiProtocolTest {
         }
     }
 
+    /** 路由通过同步补全读取单一枚举，不请求 SSE，同时保留路由角色的模型与请求头配置。 */
+    @Test
+    void routingReadsFixedEnumFromSynchronousCompletion() throws Exception {
+        try (var server = new StubServer((request, index) ->
+                "{\"id\":\"routing\",\"model\":\"router\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"MULTI_FILE\"},\"finish_reason\":\"stop\"}]}")) {
+            var settings = new SpringAiProperties();
+            settings.getRouting().setModel("router-model");
+            settings.getRouting().setHeaders(Map.of("X-Test-Role", "routing"));
+            ChatModel model = new SpringAiModelConfig().springAiRoutingModel(connection(server.url()), settings,
+                    ObservationRegistry.create());
+            var router = new SpringAiCodeGenTypeRouter(model, new SpringAiPromptLoader());
+            assertEquals(CodeGenTypeEnum.MULTI_FILE, router.routeCodeGenType("创建多文件静态页面"));
+            assertEquals(1, server.requests.size());
+            Request request = server.requests.getFirst();
+            assertFalse(request.body.path("stream").asBoolean());
+            assertEquals("router-model", request.body.path("model").asText());
+            assertEquals("routing", request.header);
+        }
+    }
+
     /** 工具参数分片由 Spring AI 聚合，项目层保留请求/执行事件，第二轮提交完整工具协议。 */
     @Test
     void streamingToolCallExecutesThenContinuesWithPairedMessages() throws Exception {

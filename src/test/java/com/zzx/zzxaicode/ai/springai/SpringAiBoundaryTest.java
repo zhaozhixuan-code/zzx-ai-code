@@ -16,10 +16,12 @@ class SpringAiBoundaryTest {
     @Test
     void routingRejectsAmbiguousOrEmptyResponse() {
         assertEquals(CodeGenTypeEnum.HTML, SpringAiCodeGenTypeRouter.parse("HTML"));
-        assertEquals(CodeGenTypeEnum.MULTI_FILE, SpringAiCodeGenTypeRouter.parse("\"multi-file\""));
+        assertEquals(CodeGenTypeEnum.MULTI_FILE, SpringAiCodeGenTypeRouter.parse(" multi_file "));
         assertEquals(CodeGenTypeEnum.VUE_PROJECT, SpringAiCodeGenTypeRouter.parse("VUE_PROJECT"));
         assertThrows(BusinessException.class, () -> SpringAiCodeGenTypeRouter.parse(null));
         assertThrows(BusinessException.class, () -> SpringAiCodeGenTypeRouter.parse("HTML or MULTI_FILE"));
+        assertThrows(BusinessException.class, () -> SpringAiCodeGenTypeRouter.parse("\"HTML\""));
+        assertThrows(BusinessException.class, () -> SpringAiCodeGenTypeRouter.parse("multi-file"));
     }
 
     /** 正常输入、长度边界、空白和原护栏拒绝条件保持可见。 */

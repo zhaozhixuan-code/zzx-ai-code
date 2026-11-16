@@ -93,7 +93,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
      * @param appId     应用ID
      * @param message   消息
      * @param loginUser 登录用户
-     * @return 生成结果流
+     * @return 生成结果流，监控标签在组装时由模型适配器捕获
      */
     @Override
     public Flux<String> chatToGenCode(Long appId, String message, User loginUser) {
@@ -118,14 +118,15 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
                         .appId(String.valueOf(appId))
                         .build()
         );
-        // 7. 调用 AI 生成代码（流式）
-        Flux<String> codeStream = aiCodeGeneratorFacade.generateAndSaveCodeStream(message, genType, appId);
-        // 8. 收集 AI 相应内容并在完成后添加到对话历史
-        return streamHandlerExecutor.doExecute(codeStream, chatHistoryService, appId, loginUser, genType)
-                .doFinally(signalType -> {
-                    // 流结束时清理，不论成功失败
-                    MonitorContextHolder.clearContext();
-                });
+        try {
+            // 7. 组装时将标签复制到模型请求选项，不依赖后续订阅线程的 ThreadLocal。
+            Flux<String> codeStream = aiCodeGeneratorFacade.generateAndSaveCodeStream(message, genType, appId);
+            // 8. 收集 AI 响应内容并在完成后添加到对话历史。
+            return streamHandlerExecutor.doExecute(codeStream, chatHistoryService, appId, loginUser, genType);
+        } finally {
+            // ThreadLocal 必须由设置它的调用线程清理；流结束回调可能在其他线程运行。
+            MonitorContextHolder.clearContext();
+        }
     }
 
 

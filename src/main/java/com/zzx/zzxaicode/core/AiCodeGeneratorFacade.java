@@ -53,9 +53,10 @@ public class AiCodeGeneratorFacade {
      */
     public Flux<String> generateAndSaveCodeStream(String userMessage, CodeGenTypeEnum codeGenType, Long appId) {
         validateType(codeGenType);
+        // 组装时捕获服务层的监控标签；每次订阅的生成状态仍由生成适配器独立创建。
+        Flux<String> stream = generator.stream(appId, userMessage, codeGenType);
         return Flux.defer(() -> {
             StringBuilder content = new StringBuilder();
-            Flux<String> stream = generator.stream(appId, userMessage, codeGenType);
             if (codeGenType == CodeGenTypeEnum.VUE_PROJECT) {
                 return stream.concatWith(Mono.fromRunnable(() -> {
                     String projectPath = AppConstant.CODE_OUTPUT_ROOT_DIR + File.separator + "vue_project_" + appId;

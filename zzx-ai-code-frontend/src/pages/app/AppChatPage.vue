@@ -510,6 +510,7 @@ const sendMessage = async () => {
  */
 const generateCode = async (userMessage: string, aiMessageIndex: number) => {
   let eventSource: EventSource | null = null
+  // 本轮连接的终态：成功、业务错误或断流后都屏蔽迟到回调，避免失败消息被覆盖。
   let streamCompleted = false
 
   /** 终止失败请求，阻止 EventSource 重连重发生成，并禁止迟到的 done 覆盖失败。
@@ -565,7 +566,7 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
       }
     }
 
-    // 处理done事件
+    // done 是后端解析保存或 Vue 构建成功后的完成信号，只有此事件允许刷新预览。
     eventSource.addEventListener('done', function () {
       if (!isChatPageActive || streamCompleted) return
 
@@ -574,7 +575,7 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
       eventSource?.close()
       if (activeEventSource === eventSource) activeEventSource = null
 
-      // 延迟更新预览，确保后端已完成处理
+      // 收到成功终态后稍延迟再取应用信息和预览地址；延迟本身不用于判断生成成功。
       setTimeout(async () => {
         await fetchAppInfo()
         updatePreview()
@@ -605,7 +606,7 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
       }
     })
 
-    // 处理错误
+    // CONNECTING 也可能是异常断流后的自动重连，不能当作成功；主动关闭以免重发生成请求。
     eventSource.onerror = function () {
       if (!isChatPageActive || streamCompleted || !isGenerating.value) return
       failStream(new Error('SSE连接中断，生成未完成'))

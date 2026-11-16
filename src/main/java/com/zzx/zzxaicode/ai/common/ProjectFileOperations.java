@@ -16,9 +16,11 @@ import java.util.stream.Stream;
 /** 框架无关文件能力，所有路径均限定为服务端 appId 对应的 Vue 项目。 */
 @Component
 public class ProjectFileOperations {
+    /** 删除保护只按文件名判断，在项目任意子目录中都生效。 */
     private static final Set<String> PROTECTED = Set.of("package.json", "package-lock.json", "yarn.lock", "pnpm-lock.yaml",
             "vite.config.js", "vite.config.ts", "vue.config.js", "tsconfig.json", "tsconfig.app.json", "tsconfig.node.json",
             "index.html", "main.js", "main.ts", "app.vue", ".gitignore", "readme.md");
+    /** 目录清单过滤项，避免依赖、构建产物和本地配置占用模型上下文。 */
     private static final Set<String> IGNORED = Set.of("node_modules", ".git", "dist", "build", ".DS_Store", ".env",
             "target", ".mvn", ".idea", ".vscode", "coverage");
     private final Path outputRoot;
@@ -113,6 +115,7 @@ public class ProjectFileOperations {
         }
         Path root = outputRoot.resolve("vue_project_" + appId).normalize();
         Path target = root.resolve(input).normalize();
+        // 规范化后再比较路径层级；文件工具还必须排除项目根目录自身。
         if (!target.startsWith(root) || (!directory && target.equals(root))) {
             throw new IllegalArgumentException("路径超出当前应用目录");
         }

@@ -37,6 +37,7 @@ public class AiCodeGeneratorFacade {
      * @param codeGenType HTML 或多文件类型
      * @param appId 服务端应用 ID
      * @return 保存后的应用目录
+     * @throws BusinessException 类型为空、Vue 类型使用同步入口、应用 ID 为空或生成结果无效
      */
     public File generateAndSaveCode(String userMessage, CodeGenTypeEnum codeGenType, Long appId) {
         validateType(codeGenType);
@@ -50,6 +51,7 @@ public class AiCodeGeneratorFacade {
      * @param codeGenType 生成类型
      * @param appId 服务端应用 ID
      * @return 保持现有上游契约的文本或 JSON 事件流
+     * @throws BusinessException 类型为空；订阅后的模型、解析、保存或构建错误通过流传播
      */
     public Flux<String> generateAndSaveCodeStream(String userMessage, CodeGenTypeEnum codeGenType, Long appId) {
         validateType(codeGenType);
@@ -58,6 +60,7 @@ public class AiCodeGeneratorFacade {
         return Flux.defer(() -> {
             StringBuilder content = new StringBuilder();
             if (codeGenType == CodeGenTypeEnum.VUE_PROJECT) {
+                // Vue 源文件已由工具逐步写入；必须等最终续答结束并构建成功，才能完成上游流。
                 return stream.concatWith(Mono.fromRunnable(() -> {
                     String projectPath = AppConstant.CODE_OUTPUT_ROOT_DIR + File.separator + "vue_project_" + appId;
                     if (!vueProjectBuilder.buildProject(projectPath)) {
@@ -65,6 +68,7 @@ public class AiCodeGeneratorFacade {
                     }
                 }).subscribeOn(Schedulers.boundedElastic()).thenMany(Flux.empty()));
             }
+            // 页面收到的是实时片段，解析器需要完整结果；保存必须在流完成前执行，失败向外传播。
             return stream.doOnNext(content::append).concatWith(Mono.fromRunnable(() -> {
                 Object parsed = GeneratedCodeResultParser.parse(content.toString(), codeGenType);
                 CodeFileSaverExecutor.executeSaver(parsed, codeGenType, appId);

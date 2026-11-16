@@ -32,6 +32,7 @@ public class JsonMessageStreamHandler {
     public Flux<String> handle(Flux<String> originFlux, ChatHistoryService chatHistoryService,
                                long appId, User loginUser) {
         return Flux.defer(() -> {
+            // 重复订阅不能共用正文和工具去重集合，否则会重复拼接历史或遗漏工具展示。
             StringBuilder history = new StringBuilder();
             Set<String> seen = new HashSet<>();
             return originFlux.map(chunk -> handleChunk(chunk, history, seen)).filter(StrUtil::isNotEmpty)
@@ -60,6 +61,7 @@ public class JsonMessageStreamHandler {
         String name = event.getStr("name", "");
         String display = NAMES.getOrDefault(name, name);
         if ("tool_request".equals(type)) {
+            // 选择提示只用于当前页面展示；工具执行结果才追加到可见历史。
             String id = event.getStr("id");
             return id != null && seen.add(id) ? "\n\n[选择工具] " + display + "\n\n" : "";
         }
@@ -82,6 +84,7 @@ public class JsonMessageStreamHandler {
      * @return 可见工具记录
      */
     private String formatResult(String name, String display, JSONObject arguments, String result) {
+        // 执行失败时优先显示真实错误，避免按工具参数拼成“写入成功”的代码展示。
         if (result.startsWith("错误") || result.startsWith("警告")) {
             return "\n\n[工具失败] " + display + "：" + result + "\n\n";
         }

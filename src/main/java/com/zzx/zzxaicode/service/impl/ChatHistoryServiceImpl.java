@@ -69,12 +69,14 @@ public class ChatHistoryServiceImpl extends ServiceImpl<ChatHistoryMapper, ChatH
      * 按应用查询最近可见历史，再转为稳定的时间升序。
      * @param appId 应用 ID
      * @param maxCount 最大消息数，必须大于零
-     * @return 按创建时间和 ID 升序排列的历史
+     * @return 按创建时间和 ID 升序排列的历史；没有记录时返回空列表
+     * @throws com.zzx.zzxaicode.exception.BusinessException 应用 ID 或最大条数不合法
      */
     @Override
     public List<ChatHistory> listRecentMessages(Long appId, int maxCount) {
         ThrowUtils.throwIf(appId == null || appId <= 0, ErrorCode.PARAMS_ERROR, "应用 ID 不能为空");
         ThrowUtils.throwIf(maxCount <= 0, ErrorCode.PARAMS_ERROR, "历史条数必须大于零");
+        // 先降序截取最近消息，再在内存反转成模型对话顺序；同一时间的记录用 ID 保证稳定排序。
         return this.list(new QueryWrapper<ChatHistory>()
                 .eq("appId", appId)
                 .orderByDesc("createTime", "id")

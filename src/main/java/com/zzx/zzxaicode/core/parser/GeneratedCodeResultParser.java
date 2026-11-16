@@ -29,11 +29,13 @@ public final class GeneratedCodeResultParser {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "模型未返回可保存的代码");
         }
         String source = text.trim();
+        // 先剥掉完整的 JSON 围栏，避免将结构化结果误交给 HTML/CSS/JS 代码块解析器。
         if (source.startsWith("```json") && source.endsWith("```")) {
             source = source.substring(7, source.length() - 3).trim();
         }
         Object parsed;
         try {
+            // JSON 映射到公共 DTO；代码块输出继续使用原有解析器，两条路径共享后续保存前校验。
             parsed = source.startsWith("{") ? switch (type) {
                 case HTML -> JSONUtil.toBean(source, HtmlCodeResult.class);
                 case MULTI_FILE -> JSONUtil.toBean(source, MultiFileCodeResult.class);
@@ -67,6 +69,7 @@ public final class GeneratedCodeResultParser {
             while (attributes.find()) {
                 String value = attributes.group(2) != null ? attributes.group(2)
                         : attributes.group(3) != null ? attributes.group(3) : attributes.group(4);
+                // 本地固定资源带查询串、片段或 ./ 前缀时仍对应同一个待保存文件。
                 String path = value.split("[?#]", 2)[0];
                 if (path.startsWith("./")) {
                     path = path.substring(2);

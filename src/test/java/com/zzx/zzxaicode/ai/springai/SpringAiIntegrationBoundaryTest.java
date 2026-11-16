@@ -58,6 +58,11 @@ class SpringAiIntegrationBoundaryTest {
         assertThrows(BusinessException.class, () -> facade.generateAndSaveCodeStream("invalid", CodeGenTypeEnum.MULTI_FILE, invalidId)
                 .blockLast(Duration.ofSeconds(3)));
         assertFalse(Files.exists(Path.of(AppConstant.CODE_OUTPUT_ROOT_DIR, "multi-file_" + invalidId)));
+        when(generator.stream(invalidId, "missingFiles", CodeGenTypeEnum.MULTI_FILE)).thenReturn(Flux.just(
+                "```html\n<html><link href=\"style.css\"><script src=\"script.js\"></script></html>\n```"));
+        assertThrows(BusinessException.class, () -> facade.generateAndSaveCodeStream("missingFiles", CodeGenTypeEnum.MULTI_FILE, invalidId)
+                .blockLast(Duration.ofSeconds(3)));
+        assertFalse(Files.exists(Path.of(AppConstant.CODE_OUTPUT_ROOT_DIR, "multi-file_" + invalidId)));
         when(generator.stream(invalidId, "failure", CodeGenTypeEnum.HTML)).thenReturn(Flux.concat(
                 Flux.just("<h1>partial"), Flux.error(new IllegalStateException("disconnected"))));
         assertThrows(IllegalStateException.class, () -> facade.generateAndSaveCodeStream("failure", CodeGenTypeEnum.HTML, invalidId)

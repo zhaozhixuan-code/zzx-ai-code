@@ -45,4 +45,27 @@ class SpringAiBoundaryTest {
         assertThrows(BusinessException.class, () -> GeneratedCodeResultParser.parse("```css\nbody{}\n```", CodeGenTypeEnum.MULTI_FILE));
         assertThrows(BusinessException.class, () -> GeneratedCodeResultParser.parse("", CodeGenTypeEnum.HTML));
     }
+
+    /** HTML 引用当前结果中的资源时必须同时提供内容；不引用资源的页面仍允许可选字段。 */
+    @Test
+    void multiFileOutputCannotReferenceMissingLocalStylesOrScripts() {
+        String htmlOnly = "```html\n<html><link rel=\"stylesheet\" href=\"style.css\">"
+                + "<script src='./script.js?v=1'></script></html>\n```";
+        assertThrows(BusinessException.class, () -> GeneratedCodeResultParser.parse(htmlOnly, CodeGenTypeEnum.MULTI_FILE));
+        assertThrows(BusinessException.class, () -> GeneratedCodeResultParser.parse(
+                htmlOnly + "\n```css\nbody{}\n```", CodeGenTypeEnum.MULTI_FILE));
+        assertThrows(BusinessException.class, () -> GeneratedCodeResultParser.parse(
+                htmlOnly + "\n```js\nconsole.log(1)\n```", CodeGenTypeEnum.MULTI_FILE));
+        MultiFileCodeResult complete = (MultiFileCodeResult) GeneratedCodeResultParser.parse(
+                htmlOnly + "\n```css\nbody{}\n```\n```javascript\nconsole.log(1)\n```", CodeGenTypeEnum.MULTI_FILE);
+        assertEquals("body{}", complete.getCssCode());
+        assertEquals("console.log(1)", complete.getJsCode());
+        assertDoesNotThrow(() -> GeneratedCodeResultParser.parse(
+                "```html\n<main><style>main{}</style><script>let n=0</script></main>\n```", CodeGenTypeEnum.MULTI_FILE));
+        assertDoesNotThrow(() -> GeneratedCodeResultParser.parse(
+                "```html\n<main><!-- <link href=style.css> --><script src=\"https://example.invalid/script.js\"></script></main>\n```",
+                CodeGenTypeEnum.MULTI_FILE));
+        assertThrows(BusinessException.class, () -> GeneratedCodeResultParser.parse(
+                "{\"htmlCode\":\"<link href=style.css><h1>ok</h1>\",\"cssCode\":\"   \"}", CodeGenTypeEnum.MULTI_FILE));
+    }
 }

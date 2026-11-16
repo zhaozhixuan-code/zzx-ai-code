@@ -4,7 +4,6 @@ import com.zzx.zzxaicode.model.enums.CodeGenTypeEnum;
 import com.zzx.zzxaicode.model.po.User;
 import com.zzx.zzxaicode.service.ChatHistoryService;
 import jakarta.annotation.Resource;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 
@@ -12,9 +11,8 @@ import reactor.core.publisher.Flux;
  * 流处理器执行器
  * 根据代码生成类型创建格式的流处理器：
  * 1．传统的Flux<String>流(HTML、MULTI_FILE）->SimpleTextStreamHandler
- * 2.TokenStream格式的复杂流（VUE_PROJECT）->JsonMessageStreamHandler
+ * 2.项目内部 JSON 事件流（VUE_PROJECT）->JsonMessageStreamHandler
  */
-@Slf4j
 @Component
 public class StreamHandlerExecutor {
 

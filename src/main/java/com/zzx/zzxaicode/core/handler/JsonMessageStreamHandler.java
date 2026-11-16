@@ -11,9 +11,7 @@ import com.zzx.zzxaicode.service.ChatHistoryService;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 
 /** 处理项目内部 JSON 事件，转换为前端既有文本流及用户可见历史。 */
 @Component
@@ -32,10 +30,9 @@ public class JsonMessageStreamHandler {
     public Flux<String> handle(Flux<String> originFlux, ChatHistoryService chatHistoryService,
                                long appId, User loginUser) {
         return Flux.defer(() -> {
-            // 重复订阅不能共用正文和工具去重集合，否则会重复拼接历史或遗漏工具展示。
+            // 每次订阅独立收集正文，不能把上一次订阅的历史再次追加到本次结果中。
             StringBuilder history = new StringBuilder();
-            Set<String> seen = new HashSet<>();
-            return originFlux.map(chunk -> handleChunk(chunk, history, seen)).filter(StrUtil::isNotEmpty)
+            return originFlux.map(chunk -> handleChunk(chunk, history)).filter(StrUtil::isNotEmpty)
                     .doOnComplete(() -> chatHistoryService.addChatMessage(appId, history.toString(),
                             ChatHistoryMessageTypeEnum.AI.getValue(), loginUser.getId()))
                     .doOnError(error -> chatHistoryService.addChatMessage(appId, "AI回复失败: " + error.getMessage(),
@@ -47,10 +44,9 @@ public class JsonMessageStreamHandler {
      * 按稳定字段解析事件，不依赖任一模型框架类型。
      * @param chunk JSON 事件
      * @param history 可见历史累积器
-     * @param seen 已展示的工具调用 ID
-     * @return 当前应展示的文本；重复工具请求返回空字符串
+     * @return 当前应展示的文本，空的 AI 文本片段由调用方过滤
      */
-    private String handleChunk(String chunk, StringBuilder history, Set<String> seen) {
+    private String handleChunk(String chunk, StringBuilder history) {
         JSONObject event = JSONUtil.parseObj(chunk);
         String type = event.getStr("type");
         if ("ai_response".equals(type)) {
@@ -61,14 +57,11 @@ public class JsonMessageStreamHandler {
         String name = event.getStr("name", "");
         String display = NAMES.getOrDefault(name, name);
         if ("tool_request".equals(type)) {
-            // 选择提示只用于当前页面展示；工具执行结果才追加到可见历史。
-            String id = event.getStr("id");
-            return id != null && seen.add(id) ? "\n\n[选择工具] " + display + "\n\n" : "";
+            // 生成器在单次模型响应内去重；展示层逐次展示，避免误吞后续轮次复用的 ID。
+            return "\n\n[选择工具] " + display + "\n\n";
         }
         if ("tool_executed".equals(type)) {
-            JSONObject arguments = JSONUtil.parseObj(event.getStr("arguments", "{}"));
-            String result = event.getStr("result", "");
-            String output = formatResult(name, display, arguments, result);
+            String output = formatResult(name, display, event);
             history.append(output);
             return output;
         }
@@ -79,19 +72,21 @@ public class JsonMessageStreamHandler {
      * 保留代码块展示，同时真实显示失败结果，避免把失败的写入描述成成功。
      * @param name 工具英文名
      * @param display 中文名
-     * @param arguments 工具参数
-     * @param result 工具实际结果
+     * @param event 工具执行事件，包含模型参数和实际结果
      * @return 可见工具记录
      */
-    private String formatResult(String name, String display, JSONObject arguments, String result) {
+    private String formatResult(String name, String display, JSONObject event) {
+        String result = event.getStr("result", "");
         // 执行失败时优先显示真实错误，避免按工具参数拼成“写入成功”的代码展示。
+        // 参数错误可能源于无效 JSON；失败展示不能再次解析同一份错误参数。
         if (result.startsWith("错误") || result.startsWith("警告")) {
             return "\n\n[工具失败] " + display + "：" + result + "\n\n";
         }
-        String path = arguments.getStr("relativeFilePath", arguments.getStr("relativeDirPath", ""));
         if ("exit".equals(name)) {
             return "\n\n[执行结束]\n\n";
         }
+        JSONObject arguments = JSONUtil.parseObj(event.getStr("arguments", "{}"));
+        String path = arguments.getStr("relativeFilePath", arguments.getStr("relativeDirPath", ""));
         if ("writeFile".equals(name)) {
             String suffix = path.contains(".") ? path.substring(path.lastIndexOf('.') + 1) : "";
             return "\n\n[工具调用] " + display + " " + path + "\n```" + suffix + "\n"

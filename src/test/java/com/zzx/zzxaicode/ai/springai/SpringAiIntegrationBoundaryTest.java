@@ -100,6 +100,35 @@ class SpringAiIntegrationBoundaryTest {
         verify(history).addChatMessage(eq(11L), contains("错误：拒绝写入"), eq("ai"), eq(1L));
     }
 
+    /** 不同模型轮次可复用调用 ID，展示层必须逐次显示生成器已经去重后的工具事件。 */
+    @Test
+    void eventDisplayDoesNotSuppressToolRequestsFromLaterRounds() {
+        var history = mock(ChatHistoryService.class);
+        var user = new User();
+        user.setId(1L);
+        String request = "{\"type\":\"tool_request\",\"id\":\"call_1\",\"name\":\"readFile\"}";
+        String executed = "{\"type\":\"tool_executed\",\"id\":\"call_1\",\"name\":\"readFile\",\"arguments\":\"{\\\"relativeFilePath\\\":\\\"a.txt\\\"}\",\"result\":\"文件内容\"}";
+        List<String> parts = new JsonMessageStreamHandler().handle(Flux.just(request, executed, request, executed),
+                history, 11, user).collectList().block(Duration.ofSeconds(3));
+        assertNotNull(parts);
+        assertEquals(2, parts.stream().filter(part -> part.contains("[选择工具]")).count());
+        assertEquals(2, parts.stream().filter(part -> part.contains("[工具调用]")).count());
+    }
+
+    /** 工具已返回参数解析失败时，展示层直接显示错误，不再次解析模型给出的无效 JSON。 */
+    @Test
+    void malformedToolArgumentsRemainVisibleAsToolFailure() {
+        var history = mock(ChatHistoryService.class);
+        var user = new User();
+        user.setId(1L);
+        String event = "{\"type\":\"tool_executed\",\"id\":\"call_1\",\"name\":\"writeFile\",\"arguments\":\"not-json\",\"result\":\"错误：工具参数必须是有效 JSON 对象\"}";
+        List<String> parts = new JsonMessageStreamHandler().handle(Flux.just(event), history, 11, user)
+                .collectList().block(Duration.ofSeconds(3));
+        assertNotNull(parts);
+        assertTrue(String.join("", parts).contains("[工具失败]"));
+        verify(history).addChatMessage(eq(11L), contains("错误：工具参数必须是有效 JSON 对象"), eq("ai"), eq(1L));
+    }
+
     /** 监控保留模型/用户/应用标签，只记录服务端原始 usage 中实际存在的字段。 */
     @Test
     void observationsKeepTagsWithoutInventingMissingTokenUsage() {

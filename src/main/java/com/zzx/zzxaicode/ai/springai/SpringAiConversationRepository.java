@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Redis 保存原始模型消息，可见历史只在缓存缺失时作为纯文本回填。 */
+/** Redis 保存 Spring AI 模型消息，可见历史只在缓存缺失时作为纯文本回填。 */
 @Component
 public class SpringAiConversationRepository {
     private static final String PREFIX = "springai:conversation:";

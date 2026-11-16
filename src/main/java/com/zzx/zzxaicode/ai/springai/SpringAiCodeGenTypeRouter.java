@@ -50,6 +50,7 @@ public class SpringAiCodeGenTypeRouter implements CodeGenTypeRouter {
         var options = OpenAiChatOptions.builder().toolContext(Map.of(
                 "userId", monitor == null || monitor.getUserId() == null ? "unknown" : monitor.getUserId(),
                 "appId", "routing")).build();
+        // 路由只用于新应用分类，不加载应用记忆；所有文本片段收齐后只解析一次枚举。
         var response = model.stream(new Prompt(List.of(
                 new SystemMessage(prompts.load("codegen-routing-system-prompt.txt")
                         + "\n只返回 HTML、MULTI_FILE、VUE_PROJECT 之一，不添加解释。"),
@@ -69,6 +70,7 @@ public class SpringAiCodeGenTypeRouter implements CodeGenTypeRouter {
      */
     static CodeGenTypeEnum parse(String output) {
         String value = output == null ? "" : output.trim();
+        // 允许模型返回单个 JSON 字符串，但解释性文本或多个候选仍会被下方枚举匹配拒绝。
         if (value.length() >= 2 && value.startsWith("\"") && value.endsWith("\"")) {
             value = value.substring(1, value.length() - 1);
         }

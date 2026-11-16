@@ -53,6 +53,7 @@ public class SpringAiModelObservationHandler implements ObservationHandler<ChatM
     @Override
     public void onStop(ChatModelObservationContext context) {
         var tags = tags(context);
+        // 请求没有异常但也没有响应时按取消计数，不能把未生成任何结果的请求记为成功。
         String status = context.getError() != null ? "error" : context.getResponse() == null ? "cancelled" : "success";
         metrics.recordRequest(tags[0], tags[1], tags[2], status);
         Long started = context.get(START);
@@ -76,7 +77,7 @@ public class SpringAiModelObservationHandler implements ObservationHandler<ChatM
     /**
      * 读取请求携带的标签，非业务调用使用 unknown。
      * @param context 模型观察上下文
-     * @return 用户、应用、模型标签
+     * @return 依次为用户 ID、应用 ID、模型 ID 的三个标签；缺失项使用 unknown
      */
     private String[] tags(ChatModelObservationContext context) {
         var options = context.getRequest().getOptions();

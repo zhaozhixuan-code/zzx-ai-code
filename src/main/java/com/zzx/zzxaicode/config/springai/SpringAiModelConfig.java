@@ -73,6 +73,7 @@ public class SpringAiModelConfig {
                                   SpringAiProperties.Role role, ObservationRegistry registry) {
         var defaults = connection.getChat().getOptions();
         var headers = new LinkedMultiValueMap<String, String>();
+        // 在副本上应用角色覆盖，避免一个角色的设置改变其他模型共享的通用配置。
         Map<String, String> configuredHeaders = new HashMap<>(defaults.getHttpHeaders());
         configuredHeaders.putAll(role.getHeaders());
         configuredHeaders.forEach(headers::set);
@@ -96,8 +97,10 @@ public class SpringAiModelConfig {
                 .streamUsage(defaults.isStreamUsage())
                 .reasoningEffort(orDefault(role.getReasoningEffort(), defaults.getReasoningEffort()))
                 .extraBody(extra)
+                // 工具由生成器顺序执行，才能在执行前后分别发送项目的工具事件。
                 .internalToolExecutionEnabled(false)
                 .build();
+        // 不重试已输出部分内容的调用，避免前端内容和文件工具副作用被重复执行。
         return OpenAiChatModel.builder().openAiApi(api).defaultOptions(options)
                 .observationRegistry(registry).retryTemplate(RetryTemplate.builder().maxAttempts(1).build()).build();
     }

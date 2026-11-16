@@ -52,6 +52,7 @@ public class SpringAiToolCallbacks {
      * @param name 工具名
      * @param description 工具说明
      * @param parameters 字符串参数名列表
+     * @throws IllegalStateException 工具 schema 无法序列化
      */
     private void add(Map<String, ToolCallback> tools, long appId, String name, String description, String... parameters) {
         Map<String, Object> properties = new LinkedHashMap<>();
@@ -59,11 +60,15 @@ public class SpringAiToolCallbacks {
             properties.put(parameter, Map.of("type", "string", "description", parameter));
         }
         try {
+            // schema 约束所有参数为字符串，并关闭额外字段；回调仍要校验不可信的模型实参。
             String schema = mapper.writeValueAsString(Map.of("type", "object", "properties", properties,
                     "required", List.of(parameters), "additionalProperties", false));
             ToolDefinition definition = new DefaultToolDefinition(name, description, schema);
             tools.put(name, new ToolCallback() {
-                /** @return 仅含业务参数的工具定义。 */
+                /**
+                 * 提供模型可见的参数声明，应用 ID 保留在服务端闭包中。
+                 * @return 仅含业务参数的工具定义
+                 */
                 @Override
                 public ToolDefinition getToolDefinition() {
                     return definition;
@@ -72,17 +77,19 @@ public class SpringAiToolCallbacks {
                 /**
                  * 解析工具参数并在服务端已绑定的项目目录中执行。
                  * @param toolInput 模型返回的 JSON 对象
-                 * @return 工具结果；参数解析异常作为明确错误文本返回
+                 * @return 工具结果；JSON 格式错误和预期文件/参数错误以文本交给模型修正
                  */
                 @Override
                 public String call(String toolInput) {
                     try {
                         Map<String, Object> arguments = mapper.readValue(toolInput, new TypeReference<>() { });
+                        // 部分端点不会严格执行 schema，服务端仍拒绝 appId 等未声明字段。
                         if (arguments == null || !properties.keySet().containsAll(arguments.keySet())) {
                             return "错误：工具参数包含未声明的字段";
                         }
                         return files.execute(appId, name, arguments);
                     } catch (JsonProcessingException e) {
+                        // 这里只处理输入格式；执行期的非预期异常继续向上传播，不能伪装成 JSON 错误。
                         return "错误：工具参数必须是有效 JSON 对象";
                     }
                 }

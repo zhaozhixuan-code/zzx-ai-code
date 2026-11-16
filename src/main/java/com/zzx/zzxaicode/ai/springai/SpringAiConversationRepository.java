@@ -19,6 +19,7 @@ import java.util.List;
 /** Redis 保存 Spring AI 模型消息，可见历史只在缓存缺失时作为纯文本回填。 */
 @Component
 public class SpringAiConversationRepository {
+    /** 与其他模型框架的 Redis 键分离，后缀只使用服务端校验的 appId。 */
     private static final String PREFIX = "springai:conversation:";
     private final StringRedisTemplate redis;
     private final ObjectMapper mapper;
@@ -45,11 +46,13 @@ public class SpringAiConversationRepository {
      * @param appId 服务端应用 ID
      * @param currentMessage 本轮用户输入，已在可见历史中保存
      * @return 独立可修改的消息列表，不同时合并 Redis 和 MySQL 历史
+     * @throws BusinessException Redis 消息 JSON 无法解析或包含不支持的角色
      */
     public List<Message> load(long appId, String currentMessage) {
         List<Message> messages = new ArrayList<>();
         String cached = redis.opsForValue().get(PREFIX + appId);
         if (cached != null) {
+            // 命中时只使用模型消息，不能再追加包含同一轮文本的可见历史。
             try {
                 for (StoredMessage item : mapper.readValue(cached, new TypeReference<List<StoredMessage>>() { })) {
                     messages.add(fromStored(item));
@@ -58,6 +61,7 @@ public class SpringAiConversationRepository {
                 throw new BusinessException(ErrorCode.SYSTEM_ERROR, "模型上下文读取失败");
             }
         } else {
+            // 缓存过期后只有可见文本可回填，先保留时间顺序，再去掉入口刚写入的本轮输入。
             List<ChatHistory> recent = new ArrayList<>(history.listRecentMessages(appId, properties.getHistoryMessages()));
             // 应用入口先保存本轮输入，缓存回填时仅去掉最后这条，随后统一追加一次。
             if (!recent.isEmpty()) {
@@ -85,10 +89,12 @@ public class SpringAiConversationRepository {
      * 仅在一轮成功时保存完整消息；裁剪到用户轮次边界，避免孤立 tool result。
      * @param appId 应用 ID
      * @param messages 不包含系统提示词的完整对话
+     * @throws BusinessException 消息无法序列化为 Redis 载荷
      */
     public void save(long appId, List<Message> messages) {
         List<Message> window = new ArrayList<>(messages);
         while (window.size() > properties.getMemoryMessages()) {
+            // 按下一个 user 的位置淘汰整个旧轮次，不能直接从固定条数位置切开工具调用。
             int nextUser = -1;
             for (int i = 1; i < window.size(); i++) {
                 if (window.get(i) instanceof UserMessage) {
@@ -135,7 +141,13 @@ public class SpringAiConversationRepository {
         };
     }
 
-    /** 缓存仅由服务端写入，不接受模型指定角色或应用键。 */
+    /**
+     * Redis 文本与工具协议载荷，仅由服务端写入；系统提示词在每次请求时单独提供。
+     * @param role user、assistant 或 tool
+     * @param text 消息正文；工具响应的实际结果保存在 responses 中
+     * @param calls assistant 声明的工具调用，其他角色为空列表
+     * @param responses 工具调用结果，ID 必须对应先前 assistant 的调用，其他角色为空列表
+     */
     public record StoredMessage(String role, String text, List<AssistantMessage.ToolCall> calls,
                                 List<ToolResponseMessage.ToolResponse> responses) { }
 }

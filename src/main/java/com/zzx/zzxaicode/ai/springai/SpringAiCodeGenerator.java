@@ -37,6 +37,7 @@ public class SpringAiCodeGenerator implements AiCodeGenerator {
     private final SpringAiConversationRepository conversations;
     private final SpringAiToolCallbacks callbacks;
     private final SpringAiProperties properties;
+    /** 仅在当前 JVM 内互斥同一应用的生成请求，不提供跨实例分布式互斥。 */
     private final Set<Long> runningApps = ConcurrentHashMap.newKeySet();
 
     /**
@@ -66,6 +67,7 @@ public class SpringAiCodeGenerator implements AiCodeGenerator {
      * @param message 本轮需求
      * @param type HTML 或多文件类型
      * @return 完整生成文本
+     * @throws BusinessException Vue 类型必须改用流式工具入口
      */
     @Override
     public String generate(long appId, String message, CodeGenTypeEnum type) {
@@ -82,13 +84,16 @@ public class SpringAiCodeGenerator implements AiCodeGenerator {
      * @param message 本轮需求
      * @param type 生成类型
      * @return 普通文本片段或既有 JSON 事件协议
+     * @throws BusinessException 输入未通过安全校验；订阅后的生成失败通过 error 信号传播
      */
     @Override
     public Flux<String> stream(long appId, String message, CodeGenTypeEnum type) {
         PromptSafetyValidator.validate(message);
+        // 服务层会在组装完流后清理 ThreadLocal，用户标签必须在订阅切线程前取出。
         MonitorContext context = MonitorContextHolder.getContext();
         String userId = context == null || context.getUserId() == null ? "unknown" : context.getUserId();
         return Flux.defer(() -> {
+            // 每次订阅才获取生成资格；失败的竞争请求不进入释放逻辑，不能释放别人的资格。
             if (!runningApps.add(appId)) {
                 return Flux.error(new BusinessException(ErrorCode.OPERATION_ERROR, "当前应用正在生成，请稍后重试"));
             }
@@ -97,6 +102,8 @@ public class SpringAiCodeGenerator implements AiCodeGenerator {
                         Flux<String> result = type == CodeGenTypeEnum.VUE_PROJECT
                                 ? round(appId, userId, history, callbacks.forApp(appId), 0)
                                 : text(appId, userId, type, history);
+                        // concatWith 仅在模型流正常完成后执行；错误或取消不会写入半轮模型消息。
+                        // 此时门面尚未进行普通模式落盘或 Vue 构建，保存不代表产物已经可预览。
                         return result.concatWith(Mono.fromRunnable(() -> conversations.save(appId, history)).thenMany(Flux.empty()));
                     })
                     .doFinally(signal -> runningApps.remove(appId));
@@ -112,6 +119,7 @@ public class SpringAiCodeGenerator implements AiCodeGenerator {
      * @return 文本片段
      */
     private Flux<String> text(long appId, String userId, CodeGenTypeEnum type, List<Message> history) {
+        // 每轮请求持有独立累积器，文本片段实时转发，assistant 历史只在正常完成时追加。
         var state = new RoundState();
         return generationModel.stream(prompt(type, history, options(appId, userId, List.of())))
                 .timeout(properties.getTimeout())
@@ -150,11 +158,13 @@ public class SpringAiCodeGenerator implements AiCodeGenerator {
                 .concatWith(Flux.defer(() -> {
                     state.validateFinished();
                     List<AssistantMessage.ToolCall> calls = new ArrayList<>(state.calls.values());
+                    // 先记录模型声明的调用，随后用相同 ID 回填工具结果，保持协议顺序。
                     history.add(AssistantMessage.builder().content(state.text.toString()).toolCalls(calls).build());
                     if (calls.isEmpty()) {
                         return Flux.empty();
                     }
                     List<ToolResponseMessage.ToolResponse> results = new ArrayList<>();
+                    // 文件工具可能依赖上一工具的写入结果，必须顺序执行，不能并发打乱目录状态。
                     return Flux.fromIterable(calls).concatMap(call -> Mono.fromCallable(() -> {
                         ToolCallback callback = tools.get(call.name());
                         String result = callback == null ? "错误：不存在工具 " + call.name() : callback.call(call.arguments());
@@ -163,6 +173,7 @@ public class SpringAiCodeGenerator implements AiCodeGenerator {
                     }).subscribeOn(Schedulers.boundedElastic()))
                             .concatWith(Flux.defer(() -> {
                                 history.add(ToolResponseMessage.builder().responses(results).build());
+                                // exit 之后仍请求一次模型续答，但不再向它提供工具声明。
                                 Map<String, ToolCallback> nextTools = calls.stream().anyMatch(call -> "exit".equals(call.name()))
                                         ? Map.of() : tools;
                                 return round(appId, userId, history, nextTools, round + 1);
@@ -179,6 +190,7 @@ public class SpringAiCodeGenerator implements AiCodeGenerator {
      */
     private Prompt prompt(CodeGenTypeEnum type, List<Message> history, OpenAiChatOptions options) {
         List<Message> messages = new ArrayList<>();
+        // 系统提示词每次请求从当前资源加载，不随用户轮次重复写入 Redis 上下文。
         messages.add(new SystemMessage(prompts.forType(type)));
         messages.addAll(history);
         return new Prompt(messages, options);
@@ -210,8 +222,11 @@ public class SpringAiCodeGenerator implements AiCodeGenerator {
 
     /** 单次网络响应状态，仅在单个订阅内部使用。 */
     private static final class RoundState {
+        /** 本轮响应的完整正文，用于流完成后的 assistant 消息。 */
         private final StringBuilder text = new StringBuilder();
+        /** 按模型交付顺序保存完整工具调用，同一 ID 只记录一次。 */
         private final Map<String, AssistantMessage.ToolCall> calls = new LinkedHashMap<>();
+        /** 最近收到的非空结束原因；最后的 usage 片段不能把它清空。 */
         private String finishReason;
 
         /**
@@ -222,6 +237,7 @@ public class SpringAiCodeGenerator implements AiCodeGenerator {
          */
         private List<String> accept(ChatResponse response, boolean json) {
             List<String> events = new ArrayList<>();
+            // 仅携带 usage 等信息的片段可以没有 generation，不产生页面事件。
             if (response.getResult() == null) {
                 return events;
             }
@@ -240,6 +256,7 @@ public class SpringAiCodeGenerator implements AiCodeGenerator {
                 if (call.id() == null || call.id().isBlank() || call.name() == null || call.name().isBlank()) {
                     throw new BusinessException(ErrorCode.OPERATION_ERROR, "模型返回了缺少标识或名称的工具调用");
                 }
+                // Spring AI 已聚合工具参数；按 ID 去重，防止后续片段重复触发工具请求展示。
                 if (calls.putIfAbsent(call.id(), call) == null && json) {
                     events.add(toolEvent("tool_request", call, null));
                 }

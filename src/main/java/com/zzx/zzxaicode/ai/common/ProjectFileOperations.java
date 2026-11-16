@@ -1,0 +1,173 @@
+package com.zzx.zzxaicode.ai.common;
+
+import com.zzx.zzxaicode.constants.AppConstant;
+import org.springframework.stereotype.Component;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Stream;
+
+/** 框架无关文件能力，所有路径均限定为服务端 appId 对应的 Vue 项目。 */
+@Component
+public class ProjectFileOperations {
+    private static final Set<String> PROTECTED = Set.of("package.json", "package-lock.json", "yarn.lock", "pnpm-lock.yaml",
+            "vite.config.js", "vite.config.ts", "vue.config.js", "tsconfig.json", "tsconfig.app.json", "tsconfig.node.json",
+            "index.html", "main.js", "main.ts", "app.vue", ".gitignore", "readme.md");
+    private static final Set<String> IGNORED = Set.of("node_modules", ".git", "dist", "build", ".DS_Store", ".env",
+            "target", ".mvn", ".idea", ".vscode", "coverage");
+    private final Path outputRoot;
+
+    /** 使用单体应用的代码生成目录。 */
+    public ProjectFileOperations() {
+        this(Path.of(AppConstant.CODE_OUTPUT_ROOT_DIR));
+    }
+
+    /**
+     * 为隔离测试或显式配置指定代码输出目录。
+     * @param outputRoot 所有应用项目的父目录
+     */
+    public ProjectFileOperations(Path outputRoot) {
+        this.outputRoot = outputRoot.toAbsolutePath().normalize();
+    }
+
+    /**
+     * 执行单个文件工具；删除只允许一个明确相对文件路径。
+     * @param appId 服务端应用 ID，必须大于零
+     * @param name 已声明的工具名称
+     * @param arguments JSON 参数，不允许包含 appId
+     * @return 工具结果文本，预期参数和文件错误以“错误：”返回模型修正
+     */
+    public String execute(long appId, String name, Map<String, Object> arguments) {
+        try {
+            if (appId <= 0 || arguments.containsKey("appId")) {
+                throw new IllegalArgumentException("应用 ID 只能由服务端提供");
+            }
+            if ("exit".equals(name)) {
+                return "不要继续调用工具，可以输出最终结果了";
+            }
+            boolean directory = "readDir".equals(name);
+            String relative = directory ? optionalString(arguments, "relativeDirPath") : required(arguments, "relativeFilePath");
+            Path path = resolve(appId, relative, directory);
+            return switch (name) {
+                case "readFile" -> Files.readString(path);
+                case "readDir" -> readDirectory(path);
+                case "writeFile" -> {
+                    String content = required(arguments, "content");
+                    Files.createDirectories(path.getParent());
+                    Files.writeString(path, content);
+                    yield "文件写入成功: " + relative;
+                }
+                case "modifyFile" -> {
+                    String oldContent = required(arguments, "oldContent");
+                    String newContent = required(arguments, "newContent");
+                    if (oldContent.isEmpty()) {
+                        throw new IllegalArgumentException("旧内容不能为空");
+                    }
+                    String original = Files.readString(path);
+                    if (!original.contains(oldContent)) {
+                        yield "警告：文件中未找到要替换的内容，文件未修改 - " + relative;
+                    }
+                    Files.writeString(path, original.replace(oldContent, newContent));
+                    yield "文件修改成功: " + relative;
+                }
+                case "deleteFile" -> {
+                    if (PROTECTED.contains(path.getFileName().toString().toLowerCase(Locale.ROOT))) {
+                        throw new IllegalArgumentException("不允许删除重要文件");
+                    }
+                    if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) {
+                        throw new IllegalArgumentException("指定路径不是文件或文件不存在");
+                    }
+                    Files.delete(path);
+                    yield "文件删除成功: " + relative;
+                }
+                default -> throw new IllegalArgumentException("不支持的工具名称");
+            };
+        } catch (IOException | IllegalArgumentException e) {
+            // 不将绝对路径、系统异常细节或其他应用信息反馈给模型和用户。
+            return "错误：工具执行失败（" + name + "）："
+                    + (e instanceof IllegalArgumentException ? e.getMessage() : "文件不存在、不可读写或路径无效");
+        }
+    }
+
+    /**
+     * 校验相对路径及每一级已有祖先，拒绝绝对路径、跨目录及符号链接。
+     * @param appId 服务端应用 ID
+     * @param relative 相对文件或目录路径
+     * @param directory 是否允许空路径表示项目根目录
+     * @return 已规范化的项目内绝对路径
+     * @throws IOException 路径类型检查失败
+     */
+    private Path resolve(long appId, String relative, boolean directory) throws IOException {
+        if ((!directory && relative.isBlank()) || relative.contains("*") || relative.contains("?")) {
+            throw new IllegalArgumentException("必须提供明确的单个相对路径");
+        }
+        Path input = Path.of(relative);
+        if (input.isAbsolute() || relative.matches("^[A-Za-z]:.*") || relative.startsWith("\\")) {
+            throw new IllegalArgumentException("不允许绝对路径");
+        }
+        Path root = outputRoot.resolve("vue_project_" + appId).normalize();
+        Path target = root.resolve(input).normalize();
+        if (!target.startsWith(root) || (!directory && target.equals(root))) {
+            throw new IllegalArgumentException("路径超出当前应用目录");
+        }
+        // 检查输出根目录的祖先，避免项目目录自身经链接指向外部。
+        for (Path cursor = target; cursor != null; cursor = cursor.getParent()) {
+            if (Files.isSymbolicLink(cursor)
+                    || (Files.exists(cursor, LinkOption.NOFOLLOW_LINKS)
+                    && Files.readAttributes(cursor, java.nio.file.attribute.BasicFileAttributes.class,
+                    LinkOption.NOFOLLOW_LINKS).isOther())) {
+                throw new IllegalArgumentException("不允许通过链接访问文件");
+            }
+        }
+        return target;
+    }
+
+    /**
+     * 列出目录中的可见文件，不跟随符号链接。
+     * @param directory 已验证的项目内目录
+     * @return 带换行的相对文件清单
+     * @throws IOException 目录不存在或不可读取
+     */
+    private String readDirectory(Path directory) throws IOException {
+        if (!Files.isDirectory(directory)) {
+            throw new IllegalArgumentException("目录不存在或不是目录");
+        }
+        try (Stream<Path> stream = Files.walk(directory)) {
+            List<String> files = stream.filter(Files::isRegularFile)
+                    .filter(path -> !Files.isSymbolicLink(path))
+                    .filter(path -> Stream.of(directory.relativize(path).toString().split("[/\\\\]"))
+                            .noneMatch(IGNORED::contains))
+                    .map(path -> directory.relativize(path).toString()).sorted().toList();
+            return "项目目录结构:\n" + String.join("\n", files);
+        }
+    }
+
+    /**
+     * 获取必需字符串，空字符串内容允许用于清空文件。
+     * @param arguments 参数表
+     * @param key 参数名
+     * @return 字符串值
+     */
+    private String required(Map<String, Object> arguments, String key) {
+        if (!(arguments.get(key) instanceof String value)) {
+            throw new IllegalArgumentException("缺少字符串参数 " + key);
+        }
+        return value;
+    }
+
+    /**
+     * 获取可空目录字符串。
+     * @param arguments 参数表
+     * @param key 参数名
+     * @return 未传入时为空字符串
+     */
+    private String optionalString(Map<String, Object> arguments, String key) {
+        return arguments.get(key) == null ? "" : required(arguments, key);
+    }
+}

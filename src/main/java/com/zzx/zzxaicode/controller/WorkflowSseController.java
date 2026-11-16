@@ -20,7 +20,8 @@ public class WorkflowSseController {
     /**
      * 同步执行工作流
      */
-    @PostMapping("/execute")
+    // 学习工作流保留为 Java 方法，不开放 HTTP 入口。
+    // @PostMapping("/execute")
     public WorkflowContext executeWorkflow(@RequestParam String prompt) {
         log.info("收到同步工作流执行请求: {}", prompt);
         return new CodeGenWorkflow().executeWorkflow(prompt);
@@ -29,7 +30,8 @@ public class WorkflowSseController {
     /**
      * Flux 流式执行工作流
      */
-    @GetMapping(value = "/execute-flux", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    // 学习工作流保留为 Java 方法，不开放 HTTP 入口。
+    // @GetMapping(value = "/execute-flux", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<String> executeWorkflowWithFlux(@RequestParam String prompt) {
         log.info("收到 Flux 工作流执行请求: {}", prompt);
         return new CodeGenWorkflow().executeWorkflowWithFlux(prompt);
@@ -38,7 +40,8 @@ public class WorkflowSseController {
     /**
      * SSE 流式执行工作流
      */
-    @GetMapping(value = "/execute-sse", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    // 学习工作流保留为 Java 方法，不开放 HTTP 入口。
+    // @GetMapping(value = "/execute-sse", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter executeWorkflowWithSse(@RequestParam String prompt) {
         log.info("收到 SSE 工作流执行请求: {}", prompt);
         return new CodeGenWorkflow().executeWorkflowWithSse(prompt);

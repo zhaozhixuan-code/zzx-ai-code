@@ -89,6 +89,29 @@ class SpringAiToolsAndMemoryTest {
         assertEquals("data", ((ToolResponseMessage) loaded.get(2)).getResponses().getFirst().responseData());
     }
 
+    /** 单个工具轮次超过目标时完整保留，下一轮完成才整体淘汰，且裁剪不修改调用方的消息列表。 */
+    @Test
+    void oversizedToolTurnIsKeptWholeUntilNextTurnCompletes() {
+        var fixture = new MemoryFixture();
+        fixture.settings.setMemoryMessages(2);
+        var call = new AssistantMessage.ToolCall("large_1", "function", "readFile", "{}");
+        List<Message> messages = List.of(new UserMessage("工具轮次"),
+                AssistantMessage.builder().content("").toolCalls(List.of(call)).build(),
+                ToolResponseMessage.builder().responses(List.of(
+                        new ToolResponseMessage.ToolResponse("large_1", "readFile", "文件内容"))).build(),
+                new AssistantMessage("处理完成"));
+        fixture.repository.save(11, messages);
+        List<Message> next = fixture.repository.load(11, "下一轮");
+        assertEquals(5, next.size());
+        assertEquals("large_1", ((AssistantMessage) next.get(1)).getToolCalls().getFirst().id());
+        assertEquals("large_1", ((ToolResponseMessage) next.get(2)).getResponses().getFirst().id());
+        next.add(new AssistantMessage("下一轮完成"));
+        fixture.repository.save(11, next);
+        assertEquals(6, next.size(), "保存窗口不应修改调用方正在使用的完整上下文");
+        assertEquals(List.of("下一轮", "下一轮完成", "继续"), fixture.repository.load(11, "继续")
+                .stream().map(Message::getText).toList());
+    }
+
     /**
      * 创建用户可见历史实体。
      * @param role user 或 ai

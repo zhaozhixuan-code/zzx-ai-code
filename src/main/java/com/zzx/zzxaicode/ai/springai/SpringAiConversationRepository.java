@@ -86,30 +86,23 @@ public class SpringAiConversationRepository {
     }
 
     /**
-     * 仅在一轮成功时保存完整消息；裁剪到用户轮次边界，避免孤立 tool result。
+     * 仅在一轮成功时保存完整消息；一次扫描确定用户轮次边界，避免孤立 tool result。
      * @param appId 应用 ID
      * @param messages 不包含系统提示词的完整对话
      * @throws BusinessException 消息无法序列化为 Redis 载荷
      */
     public void save(long appId, List<Message> messages) {
-        List<Message> window = new ArrayList<>(messages);
-        while (window.size() > properties.getMemoryMessages()) {
-            // 按下一个 user 的位置淘汰整个旧轮次，不能直接从固定条数位置切开工具调用。
-            int nextUser = -1;
-            for (int i = 1; i < window.size(); i++) {
-                if (window.get(i) instanceof UserMessage) {
-                    nextUser = i;
-                    break;
-                }
+        int start = 0;
+        int maxMessages = properties.getMemoryMessages();
+        // 只在后续 user 处推进起点；达到窗口目标即停止，不反复复制剩余消息。
+        for (int i = 1; i < messages.size() && messages.size() - start > maxMessages; i++) {
+            if (messages.get(i) instanceof UserMessage) {
+                start = i;
             }
-            // 单个工具轮次过长时保持完整，下一轮才淘汰，不能切断协议配对。
-            if (nextUser < 0) {
-                break;
-            }
-            window = new ArrayList<>(window.subList(nextUser, window.size()));
         }
+        // 若最后一轮本身超限，就整轮保留；下一轮完成后才有安全淘汰它的 user 边界。
         try {
-            List<StoredMessage> stored = window.stream().map(this::toStored).toList();
+            List<StoredMessage> stored = messages.subList(start, messages.size()).stream().map(this::toStored).toList();
             redis.opsForValue().set(PREFIX + appId, mapper.writeValueAsString(stored), properties.getMemoryTtl());
         } catch (JsonProcessingException e) {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "模型上下文保存失败");

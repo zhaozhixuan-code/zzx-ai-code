@@ -12,6 +12,7 @@ import com.zzx.zzxaicode.monitor.MonitorContextHolder;
 import org.springframework.ai.chat.messages.*;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.model.MessageAggregator;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.tool.ToolCallback;
@@ -101,7 +102,7 @@ public class SpringAiCodeGenerator implements AiCodeGenerator {
                     .flatMapMany(history -> {
                         Flux<String> result = type == CodeGenTypeEnum.VUE_PROJECT
                                 ? round(appId, userId, history, callbacks.forApp(appId), 0)
-                                : text(appId, userId, type, history);
+                                : response(generationModel, prompt(type, history, options(appId, userId, List.of())), history, false);
                         // concatWith 仅在模型流正常完成后执行；错误或取消不会写入半轮模型消息。
                         // 此时门面尚未进行普通模式落盘或 Vue 构建，保存不代表产物已经可预览。
                         return result.concatWith(Mono.fromRunnable(() -> conversations.save(appId, history)).thenMany(Flux.empty()));
@@ -111,26 +112,30 @@ public class SpringAiCodeGenerator implements AiCodeGenerator {
     }
 
     /**
-     * 普通模式按片段转发并在正常结束时把 assistant 文本加入模型上下文。
-     * @param appId 当前应用 ID
-     * @param userId 监控用户 ID
-     * @param type 普通生成类型
-     * @param history 本轮模型消息
-     * @return 文本片段
+     * 共用一次模型请求的流式处理，完整响应由框架聚合，通过结束校验后才追加 assistant。
+     * @param model 普通生成或 Vue 工具模型
+     * @param prompt 已包含系统提示词、历史和本轮工具声明的请求
+     * @param history 本轮可修改的模型消息列表，不含系统提示词
+     * @param json Vue 模式为 true，返回项目 JSON 事件；普通模式为 false，返回原始文本
+     * @return 实时片段；取消、网络错误或不完整结束时不追加 assistant
      */
-    private Flux<String> text(long appId, String userId, CodeGenTypeEnum type, List<Message> history) {
-        // 每轮请求持有独立累积器，文本片段实时转发，assistant 历史只在正常完成时追加。
+    private Flux<String> response(ChatModel model, Prompt prompt, List<Message> history, boolean json) {
         var state = new RoundState();
-        return generationModel.stream(prompt(type, history, options(appId, userId, List.of())))
+        Flux<ChatResponse> fragments = model.stream(prompt)
                 .timeout(properties.getTimeout())
-                .publishOn(Schedulers.boundedElastic())
-                .concatMap(response -> Flux.fromIterable(state.accept(response, false)))
+                .publishOn(Schedulers.boundedElastic());
+        // 聚合器保留正文与消息元数据，同时照常转发原始片段，不等待全文才向页面输出。
+        return new MessageAggregator().aggregate(fragments, aggregated -> state.response = aggregated)
+                .concatMap(fragment -> Flux.fromIterable(state.accept(fragment, json)))
                 .concatWith(Flux.defer(() -> {
                     state.validateFinished();
-                    if (!state.calls.isEmpty()) {
+                    if (!json && !state.calls.isEmpty()) {
                         return Flux.error(new BusinessException(ErrorCode.OPERATION_ERROR, "普通生成返回了未声明工具"));
                     }
-                    history.add(new AssistantMessage(state.text.toString()));
+                    AssistantMessage output = state.response.getResult().getOutput();
+                    // 聚合器按片段收集工具调用；这里按 ID 保留一次，避免重复执行或重复写入协议。
+                    history.add(AssistantMessage.builder().content(output.getText()).properties(output.getMetadata())
+                            .toolCalls(new ArrayList<>(state.calls.values())).build());
                     return Flux.empty();
                 }));
     }
@@ -141,7 +146,7 @@ public class SpringAiCodeGenerator implements AiCodeGenerator {
      * @param userId 监控用户 ID
      * @param history 当前完整消息列表
      * @param tools 本应用工具表
-     * @param round 已执行工具轮数
+     * @param round 已完成的模型请求数，最终无工具续答也占用一次请求额度
      * @return 文本、工具请求、工具执行事件及最终续答
      */
     private Flux<String> round(long appId, String userId, List<Message> history,
@@ -149,17 +154,11 @@ public class SpringAiCodeGenerator implements AiCodeGenerator {
         if (round >= properties.getMaxToolRounds()) {
             return Flux.error(new BusinessException(ErrorCode.OPERATION_ERROR, "工具调用次数超过上限"));
         }
-        var state = new RoundState();
-        return vueModel.stream(prompt(CodeGenTypeEnum.VUE_PROJECT, history,
-                        options(appId, userId, new ArrayList<>(tools.values()))))
-                .timeout(properties.getTimeout())
-                .publishOn(Schedulers.boundedElastic())
-                .concatMap(response -> Flux.fromIterable(state.accept(response, true)))
+        return response(vueModel, prompt(CodeGenTypeEnum.VUE_PROJECT, history,
+                        options(appId, userId, new ArrayList<>(tools.values()))), history, true)
                 .concatWith(Flux.defer(() -> {
-                    state.validateFinished();
-                    List<AssistantMessage.ToolCall> calls = new ArrayList<>(state.calls.values());
-                    // 先记录模型声明的调用，随后用相同 ID 回填工具结果，保持协议顺序。
-                    history.add(AssistantMessage.builder().content(state.text.toString()).toolCalls(calls).build());
+                    // 共用响应流程已经追加完整 assistant，再以相同 ID 回填工具结果。
+                    List<AssistantMessage.ToolCall> calls = ((AssistantMessage) history.getLast()).getToolCalls();
                     if (calls.isEmpty()) {
                         return Flux.empty();
                     }
@@ -222,8 +221,8 @@ public class SpringAiCodeGenerator implements AiCodeGenerator {
 
     /** 单次网络响应状态，仅在单个订阅内部使用。 */
     private static final class RoundState {
-        /** 本轮响应的完整正文，用于流完成后的 assistant 消息。 */
-        private final StringBuilder text = new StringBuilder();
+        /** 框架在正常完成时提供的完整响应；取消或错误时不会赋值。 */
+        private ChatResponse response;
         /** 按模型交付顺序保存完整工具调用，同一 ID 只记录一次。 */
         private final Map<String, AssistantMessage.ToolCall> calls = new LinkedHashMap<>();
         /** 最近收到的非空结束原因；最后的 usage 片段不能把它清空。 */
@@ -249,7 +248,6 @@ public class SpringAiCodeGenerator implements AiCodeGenerator {
             AssistantMessage output = generation.getOutput();
             String content = output.getText();
             if (content != null && !content.isEmpty()) {
-                text.append(content);
                 events.add(json ? JSONUtil.createObj().set("type", "ai_response").set("data", content).toString() : content);
             }
             for (var call : output.getToolCalls()) {
@@ -270,7 +268,7 @@ public class SpringAiCodeGenerator implements AiCodeGenerator {
          */
         private void validateFinished() {
             if (!("STOP".equalsIgnoreCase(finishReason) || "TOOL_CALLS".equalsIgnoreCase(finishReason))
-                    || (text.isEmpty() && calls.isEmpty())) {
+                    || (response.getResult().getOutput().getText().isEmpty() && calls.isEmpty())) {
                 throw new BusinessException(ErrorCode.OPERATION_ERROR, "模型未正常完成生成：" + finishReason);
             }
         }

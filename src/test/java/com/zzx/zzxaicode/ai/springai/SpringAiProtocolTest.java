@@ -12,6 +12,9 @@ import io.micrometer.observation.ObservationRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.messages.*;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.model.Generation;
+import org.springframework.ai.chat.metadata.ChatGenerationMetadata;
 import org.springframework.ai.chat.prompt.Prompt;
 import reactor.core.publisher.Flux;
 
@@ -123,6 +126,83 @@ class SpringAiProtocolTest {
         assertThrows(RuntimeException.class, () -> generator.stream(11, "创建页面", CodeGenTypeEnum.HTML)
                 .collectList().block(Duration.ofSeconds(2)));
         verify(repository, times(2)).load(11, "创建页面");
+        verify(repository, never()).save(anyLong(), anyList());
+    }
+
+    /** 聚合保留各片段的消息元数据，尾部空元数据和 usage 帧不能清除有效结束原因。 */
+    @Test
+    void aggregationPreservesMetadataAndFinishBeforeUsage() {
+        var repository = mock(SpringAiConversationRepository.class);
+        List<Message> history = new ArrayList<>(List.of(new UserMessage("创建页面")));
+        when(repository.load(11, "创建页面")).thenReturn(history);
+        ChatModel model = mock(ChatModel.class);
+        when(model.stream(any(Prompt.class))).thenReturn(Flux.just(
+                new ChatResponse(List.of(new Generation(AssistantMessage.builder().content("第一段")
+                        .properties(Map.of("first", "a")).build()))),
+                new ChatResponse(List.of(new Generation(AssistantMessage.builder().content("第二段")
+                        .properties(Map.of("second", "b")).build(),
+                        ChatGenerationMetadata.builder().finishReason("STOP").build()))),
+                new ChatResponse(List.of(new Generation(new AssistantMessage(""),
+                        ChatGenerationMetadata.builder().build()))), new ChatResponse(List.of())));
+        var generator = new SpringAiCodeGenerator(model, model, new SpringAiPromptLoader(), repository,
+                mock(SpringAiToolCallbacks.class), new SpringAiProperties());
+        assertEquals(List.of("第一段", "第二段"), generator.stream(11, "创建页面", CodeGenTypeEnum.HTML)
+                .collectList().block(Duration.ofSeconds(3)));
+        AssistantMessage saved = (AssistantMessage) history.getLast();
+        assertEquals("第一段第二段", saved.getText());
+        assertEquals("a", saved.getMetadata().get("first"));
+        assertEquals("b", saved.getMetadata().get("second"));
+        verify(repository).save(11, history);
+    }
+
+    /** 重复工具片段只执行一次，exit 后的最终请求不再声明工具，记忆中调用与结果保持配对。 */
+    @Test
+    void duplicateToolFramesExecuteOnceAndExitDisablesTools() throws Exception {
+        var repository = mock(SpringAiConversationRepository.class);
+        List<Message> history = new ArrayList<>(List.of(new UserMessage("创建页面")));
+        when(repository.load(11, "创建页面")).thenReturn(history);
+        var callbacks = mock(SpringAiToolCallbacks.class);
+        var callback = mock(org.springframework.ai.tool.ToolCallback.class);
+        when(callback.call("{}")).thenReturn("完成工具调用");
+        when(callbacks.forApp(11)).thenReturn(Map.of("exit", callback));
+        var call = new AssistantMessage.ToolCall("exit_1", "function", "exit", "{}");
+        ChatResponse toolFrame = new ChatResponse(List.of(new Generation(AssistantMessage.builder().content("")
+                .toolCalls(List.of(call)).build(), ChatGenerationMetadata.builder().finishReason("TOOL_CALLS").build())));
+        ChatModel model = mock(ChatModel.class);
+        when(model.stream(any(Prompt.class))).thenReturn(Flux.just(toolFrame, toolFrame),
+                Flux.just(new ChatResponse(List.of(new Generation(new AssistantMessage("完成"),
+                        ChatGenerationMetadata.builder().finishReason("STOP").build())))));
+        var generator = new SpringAiCodeGenerator(model, model, new SpringAiPromptLoader(), repository,
+                callbacks, new SpringAiProperties());
+        List<String> events = generator.stream(11, "创建页面", CodeGenTypeEnum.VUE_PROJECT)
+                .collectList().block(Duration.ofSeconds(3));
+        assertNotNull(events);
+        assertEquals(List.of("tool_request", "tool_executed", "ai_response"),
+                events.stream().map(event -> cn.hutool.json.JSONUtil.parseObj(event).getStr("type")).toList());
+        verify(callback, times(1)).call("{}");
+        assertEquals(1, ((AssistantMessage) history.get(1)).getToolCalls().size());
+        assertEquals("exit_1", ((ToolResponseMessage) history.get(2)).getResponses().getFirst().id());
+        var requests = org.mockito.ArgumentCaptor.forClass(Prompt.class);
+        verify(model, times(2)).stream(requests.capture());
+        assertTrue(((org.springframework.ai.openai.OpenAiChatOptions) requests.getAllValues().get(1).getOptions())
+                .getToolCallbacks().isEmpty());
+        verify(repository).save(11, history);
+    }
+
+    /** 页面收到首片段就取消时，不等待模型完成、不追加 assistant，也不保存半轮记忆。 */
+    @Test
+    void cancellationDoesNotCommitAggregatedMemory() {
+        var repository = mock(SpringAiConversationRepository.class);
+        List<Message> history = new ArrayList<>(List.of(new UserMessage("创建页面")));
+        when(repository.load(11, "创建页面")).thenReturn(history);
+        ChatModel model = mock(ChatModel.class);
+        when(model.stream(any(Prompt.class))).thenReturn(Flux.concat(
+                Flux.just(new ChatResponse(List.of(new Generation(new AssistantMessage("首片段"))))), Flux.never()));
+        var generator = new SpringAiCodeGenerator(model, model, new SpringAiPromptLoader(), repository,
+                mock(SpringAiToolCallbacks.class), new SpringAiProperties());
+        assertEquals(List.of("首片段"), generator.stream(11, "创建页面", CodeGenTypeEnum.HTML).take(1)
+                .collectList().block(Duration.ofSeconds(3)));
+        assertEquals(1, history.size());
         verify(repository, never()).save(anyLong(), anyList());
     }
 

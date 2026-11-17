@@ -29,22 +29,14 @@
     <properties>
         <java.version>21</java.version>
         <spring-ai.version>1.1.2</spring-ai.version>
-        <spring-ai-alibaba.version>1.1.2.2</spring-ai-alibaba.version>
     </properties>
-    <!-- 两套 BOM 分别约束模型适配与 Agent 版本，旧学习框架依赖仍保留。 -->
+    <!-- Spring AI BOM 统一约束官方组件版本，旧学习框架依赖仍保留。 -->
     <dependencyManagement>
         <dependencies>
             <dependency>
                 <groupId>org.springframework.ai</groupId>
                 <artifactId>spring-ai-bom</artifactId>
                 <version>${spring-ai.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-            <dependency>
-                <groupId>com.alibaba.cloud.ai</groupId>
-                <artifactId>spring-ai-alibaba-bom</artifactId>
-                <version>${spring-ai-alibaba.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -55,10 +47,6 @@
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-starter-model-openai</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.alibaba.cloud.ai</groupId>
-            <artifactId>spring-ai-alibaba-agent-framework</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

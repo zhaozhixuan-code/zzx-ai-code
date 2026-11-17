@@ -164,8 +164,8 @@ public class SpringAiCodeGenerator implements AiCodeGenerator {
                         return Flux.empty();
                     }
                     List<ToolResponseMessage.ToolResponse> results = new ArrayList<>();
-                    // 文件工具可能依赖上一工具的写入结果，必须顺序执行，不能并发打乱目录状态。
-                    return Flux.fromIterable(calls).concatMap(call -> Mono.fromCallable(() -> {
+                    // response() 已切到 boundedElastic；直接顺序执行文件工具，不再为每个工具重复调度。
+                    return Flux.fromIterable(calls).map(call -> {
                         ToolCallback callback = tools.get(call.name());
                         // 未声明工具是协议错误，不能伪装成已执行结果交回模型继续循环。
                         if (callback == null) {
@@ -174,7 +174,7 @@ public class SpringAiCodeGenerator implements AiCodeGenerator {
                         String result = callback.call(call.arguments());
                         results.add(new ToolResponseMessage.ToolResponse(call.id(), call.name(), result));
                         return toolEvent("tool_executed", call, result);
-                    }).subscribeOn(Schedulers.boundedElastic()))
+                    })
                             .concatWith(Flux.defer(() -> {
                                 history.add(ToolResponseMessage.builder().responses(results).build());
                                 // exit 之后仍请求一次模型续答，但不再向它提供工具声明。

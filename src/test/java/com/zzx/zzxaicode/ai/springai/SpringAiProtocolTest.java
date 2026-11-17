@@ -92,7 +92,11 @@ class SpringAiProtocolTest {
             var callback = mock(org.springframework.ai.tool.ToolCallback.class);
             when(callback.getToolDefinition()).thenReturn(new org.springframework.ai.tool.definition.DefaultToolDefinition(
                     "writeFile", "写入文件", "{\"type\":\"object\",\"properties\":{\"relativeFilePath\":{\"type\":\"string\"},\"content\":{\"type\":\"string\"}}}"));
-            when(callback.call(anyString())).thenReturn("文件写入成功: src/demo.txt");
+            when(callback.call(anyString())).thenAnswer(invocation -> {
+                assertTrue(Thread.currentThread().getName().startsWith("boundedElastic-"),
+                        "文件工具不能占用网络事件线程");
+                return "文件写入成功: src/demo.txt";
+            });
             when(callbacks.forApp(11)).thenReturn(Map.of("writeFile", callback));
             var generator = new SpringAiCodeGenerator(model, model, new SpringAiPromptLoader(), repository, callbacks, settings);
             List<String> events = generator.stream(11, "创建页面", CodeGenTypeEnum.VUE_PROJECT).collectList().block(Duration.ofSeconds(8));

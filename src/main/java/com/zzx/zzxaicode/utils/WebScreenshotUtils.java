@@ -1,181 +1,170 @@
 package com.zzx.zzxaicode.utils;
 
-import cn.hutool.core.img.ImgUtil;
-import cn.hutool.core.io.FileUtil;
-import cn.hutool.core.io.IORuntimeException;
-import cn.hutool.core.util.RandomUtil;
-import com.zzx.zzxaicode.constants.AppConstant;
+import com.zzx.zzxaicode.config.ScreenshotProperties;
 import com.zzx.zzxaicode.exception.BusinessException;
 import com.zzx.zzxaicode.exception.ErrorCode;
-import io.github.bonigarcia.wdm.WebDriverManager;
-import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
-import org.openqa.selenium.*;
-import org.openqa.selenium.chrome.ChromeDriver;
-import org.openqa.selenium.chrome.ChromeOptions;
+import org.openqa.selenium.JavascriptExecutor;
+import org.openqa.selenium.OutputType;
+import org.openqa.selenium.TakesScreenshot;
+import org.openqa.selenium.TimeoutException;
+import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.WebDriverException;
 import org.openqa.selenium.support.ui.WebDriverWait;
+import org.springframework.stereotype.Component;
 
-import java.io.File;
-import java.time.Duration;
+import javax.imageio.IIOImage;
+import javax.imageio.ImageIO;
+import javax.imageio.ImageWriteParam;
+import java.awt.Color;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 
-/**
- * Web 截图工具类
- */
+/** 有界并发的网页截图组件；不共享浏览器会话，初始化失败不会污染后续任务。 */
+@Component
 @Slf4j
 public class WebScreenshotUtils {
-
-    private static final WebDriver webDriver;
+    private final ScreenshotDriverFactory driverFactory;
+    private final ScreenshotProperties properties;
+    private final Semaphore slots;
 
     /**
-     * 全局静态初始化 WebDriver，避免重复初始化驱动程序
+     * @param driverFactory 每次调用创建独立浏览器的工厂
+     * @param properties 截图等待、并发及文件目录配置
      */
-    static {
-        final int DEFAULT_WIDTH = 1600;
-        final int DEFAULT_HEIGHT = 900;
-        webDriver = initChromeDriver(DEFAULT_WIDTH, DEFAULT_HEIGHT);
+    public WebScreenshotUtils(ScreenshotDriverFactory driverFactory, ScreenshotProperties properties) {
+        this.driverFactory = driverFactory;
+        this.properties = properties;
+        this.slots = new Semaphore(properties.getMaxConcurrent(), true);
     }
 
     /**
-     * 关闭程序时释放 WebDriver
+     * 在有界并发名额内完成网页截图，仅对已经建立的浏览器会话异常重试一次。
+     * @param webUrl 需要截图的完整网页地址
+     * @return 本次任务独占的 JPEG 文件路径，成功后由上传服务清理
+     * @throws BusinessException 截图失败、等待名额超时或任务被中断
      */
-    @PreDestroy
-    public void destroy() {
-        webDriver.quit();
-    }
-
-    /**
-     * 获取网页截图
-     *
-     * @param webUrl 网页地址
-     * @return 压缩后的截图文件路径，失败返回null
-     */
-    public static String saveWebPageScreenshot(String webUrl) {
-        if (webUrl == null) {
-            log.error("webUrl不能为空");
-            return null;
+    public String saveWebPageScreenshot(String webUrl) {
+        if (webUrl == null || webUrl.isBlank()) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "网页地址不能为空");
         }
+        boolean acquired = false;
         try {
-            // 创建临时目录 tmp/screenshots/124345678
-            String rootPath = AppConstant.IMAGE_ROOT_PATH + File.separator + RandomUtil.randomString(8);
-            FileUtil.mkdir(rootPath);
-            // 图片后缀
-            final String IMAGE_SUFFIX = ".png";
-            // 原始截图文件路径 tmp/screenshots/124345678/12345678.png
-            String imagePath = rootPath + File.separator + RandomUtil.randomString(5) + IMAGE_SUFFIX;
-            // 访问网页
-            webDriver.get(webUrl);
-            // 等待页面加载完成
-            waitForPageLoad(webDriver);
-            // 截图并保存
-            saveImage(((TakesScreenshot) webDriver).getScreenshotAs(OutputType.BYTES), imagePath);
-            log.info("截图保存成功，保存路径为：{}", imagePath);
-            // 压缩图片
-            final String COMPRESSED_IMAGE_SUFFIX = "_compressed.jpg";
-            String compressedImagePath = rootPath + File.separator + RandomUtil.randomString(5) + COMPRESSED_IMAGE_SUFFIX;
-            compressImage(imagePath, compressedImagePath);
-            log.info("压缩图片保存成功，保存路径为：{}", compressedImagePath);
-            // 删除原始图片，只保留压缩图片
-            FileUtil.del(imagePath);
-            return compressedImagePath;
-        } catch (Exception e) {
-            log.error("获取网页截图失败:{}", webUrl, e);
-            return null;
-        }
-    }
-
-    /**
-     * 初始化 Chrome 浏览器驱动
-     *
-     * @param width  窗口宽度
-     * @param height 窗口高度
-     * @return
-     */
-    private static WebDriver initChromeDriver(int width, int height) {
-        try {
-            // 自动管理 ChromeDriver
-            WebDriverManager.chromedriver().setup();
-            // 配置 Chrome 选项
-            ChromeOptions options = new ChromeOptions();
-            // 无头模式
-            options.addArguments("--headless");
-            // 禁用GPU（在某些环境下避免问题）
-            options.addArguments("--disable-gpu");
-            // 禁用沙盒模式（Docker环境需要）
-            options.addArguments("--no-sandbox");
-            // 禁用开发者shm使用
-            options.addArguments("--disable-dev-shm-usage");
-            // 设置窗口大小
-            options.addArguments(String.format("--window-size=%d,%d", width, height));
-            // 禁用扩展
-            options.addArguments("--disable-extensions");
-            // 设置用户代理
-            options.addArguments("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36");
-            // 创建驱动
-            WebDriver driver = new ChromeDriver(options);
-            // 设置页面加载超时
-            driver.manage().timeouts().pageLoadTimeout(Duration.ofSeconds(30));
-            // 设置隐式等待
-            driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(10));
-            return driver;
-        } catch (Exception e) {
-            log.error("初始化 Chrome 浏览器失败", e);
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "初始化 Chrome 浏览器失败");
-        }
-    }
-
-    /**
-     * 保存图片
-     *
-     * @param imageBytes 图片字节数组
-     * @param imagePath  图片保存路径
-     */
-    private static void saveImage(byte[] imageBytes, String imagePath) {
-        try {
-            FileUtil.writeBytes(imageBytes, imagePath);
-        } catch (IORuntimeException e) {
-            log.error("保存图片失败:{}", imagePath, e);
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "保存图片失败");
-        }
-    }
-
-    /**
-     * 压缩图片
-     *
-     * @param originImagePath     原图片路径
-     * @param compressedImagePath 压缩图片路径
-     */
-    private static void compressImage(String originImagePath, String compressedImagePath) {
-
-        final float COMPRESSION_QUALITY = 0.3f;
-
-        try {
-            ImgUtil.compress(FileUtil.file(originImagePath), FileUtil.file(compressedImagePath), COMPRESSION_QUALITY);
-        } catch (IORuntimeException e) {
-            log.error("压缩图片失败:{} -> {}", originImagePath, compressedImagePath, e);
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "压缩图片失败");
-        }
-    }
-
-    /**
-     * 等待页面加载完成
-     *
-     * @param driver-
-     */
-    private static void waitForPageLoad(WebDriver driver) {
-        try {
-            // 等待页面加载完成
-            WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(30));
-            // 等待 document.readyState == 'complete'
-            wait.until(webDriver ->
-                    ((JavascriptExecutor) webDriver)
-                            .executeScript("return document.readyState")
-                            .equals("complete"));
-            // 额外等待一段时间，确保页面完全加载
-            Thread.sleep(2000);
-            log.info("页面加载完成");
+            acquired = slots.tryAcquire(properties.getQueueTimeout().toMillis(), TimeUnit.MILLISECONDS);
+            if (!acquired) {
+                throw new BusinessException(ErrorCode.SYSTEM_ERROR, "截图任务繁忙，等待浏览器名额超时");
+            }
+            for (int attempt = 1; attempt <= 2; attempt++) {
+                WebDriver driver = null;
+                try {
+                    driver = driverFactory.createDriver();
+                    driver.manage().timeouts().pageLoadTimeout(properties.getPageLoadTimeout());
+                    driver.get(webUrl);
+                    waitForPageLoad(driver);
+                    String path = saveCompressedImage(((TakesScreenshot) driver).getScreenshotAs(OutputType.BYTES));
+                    log.info("截图保存成功，网页地址={}, 文件={}", webUrl, path);
+                    return path;
+                } catch (WebDriverException e) {
+                    if (Thread.currentThread().isInterrupted()) {
+                        throw new BusinessException(ErrorCode.SYSTEM_ERROR, "截图任务被中断");
+                    }
+                    if (driver == null || attempt == 2) {
+                        log.error("网页截图失败，网页地址={}, 尝试次数={}；请核对浏览器/驱动版本及 Linux 运行依赖",
+                                webUrl, attempt, e);
+                        throw new BusinessException(ErrorCode.SYSTEM_ERROR, "浏览器截图失败，请查看截图日志");
+                    }
+                    log.warn("截图会话异常，将关闭浏览器后重试一次，网页地址={}", webUrl, e);
+                } finally {
+                    if (driver != null) {
+                        try {
+                            driver.quit();
+                        } catch (WebDriverException e) {
+                            // 清理异常只记录，不能覆盖已生成的图片或原始失败原因。
+                            log.warn("关闭截图浏览器失败，网页地址={}", webUrl, e);
+                        }
+                    }
+                }
+            }
+            throw new IllegalStateException("截图重试次数已耗尽");
         } catch (InterruptedException e) {
-            log.error("等待页面加载完成失败,继续执行截图", e);
+            Thread.currentThread().interrupt();
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "截图任务被中断");
+        } finally {
+            if (acquired) {
+                slots.release();
+            }
         }
     }
 
+    /**
+     * 等待 DOM 可访问，再给前端挂载时间；图片或字体长期未完成时保留已渲染内容。
+     * @param driver 当前任务独占的浏览器
+     * @throws InterruptedException 等待期间收到取消信号，向上传递以停止任务
+     */
+    private void waitForPageLoad(WebDriver driver) throws InterruptedException {
+        WebDriverWait wait = new WebDriverWait(driver, properties.getRenderTimeout());
+        wait.until(current -> Boolean.TRUE.equals(((JavascriptExecutor) current).executeScript(
+                "return document.readyState !== 'loading' && document.body !== null")));
+        Thread.sleep(properties.getSettleDelay().toMillis());
+        try {
+            wait.until(current -> Boolean.TRUE.equals(((JavascriptExecutor) current).executeScript(
+                    "return Array.from(document.images).every(img => img.complete)"
+                            + " && (!document.fonts || document.fonts.status === 'loaded')")));
+        } catch (TimeoutException e) {
+            log.warn("图片或字体等待超时，截取当前已渲染页面");
+        }
+    }
+
+    /**
+     * 在内存中把 PNG 转成 JPEG，仅落盘一个独占文件，避免失败时遗留原始 PNG 或临时目录。
+     * @param png 浏览器返回的 PNG 字节
+     * @return 压缩文件的绝对路径；失败时清理本方法创建的单个文件
+     */
+    private String saveCompressedImage(byte[] png) {
+        Path output = null;
+        try {
+            var image = ImageIO.read(new ByteArrayInputStream(png));
+            if (image == null) {
+                throw new IOException("浏览器返回的截图无法解码");
+            }
+            Files.createDirectories(properties.getOutputDirectory());
+            output = Files.createTempFile(properties.getOutputDirectory(), "screenshot-", ".jpg");
+            // JPEG 不支持透明通道，先合成白底 RGB，避免透明 PNG 引发颜色空间不兼容。
+            var rgb = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_INT_RGB);
+            var graphics = rgb.createGraphics();
+            try {
+                graphics.setColor(Color.WHITE);
+                graphics.fillRect(0, 0, rgb.getWidth(), rgb.getHeight());
+                graphics.drawImage(image, 0, 0, null);
+            } finally {
+                graphics.dispose();
+            }
+            var writer = ImageIO.getImageWritersByFormatName("jpeg").next();
+            try (var stream = ImageIO.createImageOutputStream(output.toFile())) {
+                writer.setOutput(stream);
+                var parameters = writer.getDefaultWriteParam();
+                parameters.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+                parameters.setCompressionQuality(0.3f);
+                writer.write(null, new IIOImage(rgb, null, null), parameters);
+            } finally {
+                writer.dispose();
+            }
+            return output.toAbsolutePath().toString();
+        } catch (IOException e) {
+            if (output != null) {
+                try {
+                    Files.deleteIfExists(output);
+                } catch (IOException cleanupError) {
+                    e.addSuppressed(cleanupError);
+                }
+            }
+            log.error("保存压缩截图失败", e);
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "保存压缩截图失败");
+        }
+    }
 }

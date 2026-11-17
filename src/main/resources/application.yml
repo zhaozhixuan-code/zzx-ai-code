@@ -173,3 +173,18 @@ management:
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: false
+
+# 截图：Windows 默认自动发现 Chrome；Linux 生产建议预装匹配的浏览器/驱动并关闭自动下载。
+# 例如 SCREENSHOT_BROWSER_BINARY=/usr/bin/chromium、SCREENSHOT_DRIVER_PATH=/usr/bin/chromedriver；
+# 路径须按实际安装位置设置，浏览器与驱动版本匹配，运行用户需具备执行权限及系统运行依赖。
+screenshot:
+  browser-binary: ${SCREENSHOT_BROWSER_BINARY:}
+  driver-path: ${SCREENSHOT_DRIVER_PATH:}
+  auto-download: ${SCREENSHOT_AUTO_DOWNLOAD:true}
+  driver-timeout: 15s
+  page-load-timeout: 30s
+  render-timeout: 15s
+  settle-delay: 2s
+  queue-timeout: 60s
+  max-concurrent: 1
+  no-sandbox: true

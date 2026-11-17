@@ -1,6 +1,5 @@
 package com.zzx.zzxaicode.service.impl;
 
-import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import com.zzx.zzxaicode.exception.ErrorCode;
 import com.zzx.zzxaicode.exception.ThrowUtils;
@@ -12,6 +11,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.UUID;
@@ -26,12 +28,16 @@ public class ScreenshotServiceImpl implements ScreenshotService {
     @Resource
     private CosManager cosManager;
 
+    @Resource
+    private WebScreenshotUtils webScreenshotUtils;
+
 
     /**
      * 生成截图并上传
      *
      * @param webUrl 网页地址
-     * @return 截图上传后的地址
+     * @return 截图上传后的地址；上传后清理本次本地文件
+     * @throws com.zzx.zzxaicode.exception.BusinessException 浏览器截图或上传结果校验失败
      */
     @Override
     public String generateAndUploadScreenshot(String webUrl) {
@@ -39,7 +45,7 @@ public class ScreenshotServiceImpl implements ScreenshotService {
         ThrowUtils.throwIf(StrUtil.isBlank(webUrl), ErrorCode.PARAMS_ERROR, "网页地址不能为空");
         log.info("开始生成截图，网页地址:{}", webUrl);
         // 2. 本地截图
-        String localScreenshotPath = WebScreenshotUtils.saveWebPageScreenshot(webUrl);
+        String localScreenshotPath = webScreenshotUtils.saveWebPageScreenshot(webUrl);
         ThrowUtils.throwIf(localScreenshotPath == null, ErrorCode.SYSTEM_ERROR, "生成截图失败");
         try {
             // 3. 上传文件到 COS
@@ -88,16 +94,17 @@ public class ScreenshotServiceImpl implements ScreenshotService {
     }
 
     /**
-     * 清理本地文件
+     * 仅清理本次生成的单个 JPEG；上传成功或失败均执行，不删除共享目录中的其他任务文件。
      *
-     * @param localFilePath 本地文件路径
+     * @param localFilePath 本次任务生成的压缩截图完整路径
      */
     private void cleanupLocalFile(String localFilePath) {
-        File file = new File(localFilePath);
-        if (file.exists()) {
-            File parentFile = file.getParentFile();
-            FileUtil.del(parentFile);
+        try {
+            Files.deleteIfExists(Path.of(localFilePath));
             log.info("清理本地文件成功:{}", localFilePath);
+        } catch (IOException e) {
+            // 清理失败不覆盖 COS 上传结果或上传异常，保留完整路径供后续定位。
+            log.warn("清理本地截图失败:{}", localFilePath, e);
         }
     }
 }

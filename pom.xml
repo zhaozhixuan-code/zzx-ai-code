@@ -173,12 +173,26 @@
             <groupId>io.github.bonigarcia</groupId>
             <artifactId>webdrivermanager</artifactId>
             <version>6.1.0</version>
+            <!-- 统一通过 Spring JCL 适配日志，避免与 Commons Logging 的运行时发现机制冲突。 -->
+            <exclusions>
+                <exclusion>
+                    <groupId>commons-logging</groupId>
+                    <artifactId>commons-logging</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <!-- 腾讯云COS -->
         <dependency>
             <groupId>com.qcloud</groupId>
             <artifactId>cos_api</artifactId>
             <version>5.6.227</version>
+            <!-- COS 的传递依赖也包含同一日志实现，需要一并排除。 -->
+            <exclusions>
+                <exclusion>
+                    <groupId>commons-logging</groupId>
+                    <artifactId>commons-logging</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <!-- LangGraph4j -->
         <dependency>

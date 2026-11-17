@@ -3,15 +3,11 @@ package com.zzx.zzxaicode.core.handler;
 import com.zzx.zzxaicode.model.enums.ChatHistoryMessageTypeEnum;
 import com.zzx.zzxaicode.model.po.User;
 import com.zzx.zzxaicode.service.ChatHistoryService;
-import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 
 /**
- * 简单文本流处理器
- * 处理 HTML 和 MULTI_FILE 类型的流式响应
+ * 处理 HTML 和 MULTI_FILE 类型的文本流，并在每次订阅完成后记录可见回复。
  */
-
-@Slf4j
 public class SimpleTextStreamHandler {
 
     /**
@@ -27,21 +23,15 @@ public class SimpleTextStreamHandler {
                                ChatHistoryService chatHistoryService,
                                long appId,
                                User loginUser) {
-        // 收集 AI 相应内容并在完成后添加到对话历史
-        StringBuilder aiResultBuilder = new StringBuilder();
-        return originFlux.map(chunk -> {
-            // 收集 AI 信息
-            aiResultBuilder.append(chunk);
-            return chunk;
-        }).doOnComplete(() -> {
-            // 流式响应完成后，添加 AI 信息到历史对话中
-            String aiResponse = aiResultBuilder.toString();
-            chatHistoryService.addChatMessage(appId, aiResponse, ChatHistoryMessageTypeEnum.AI.getValue(), loginUser.getId());
-        }).doOnError(throwable -> {
-            String aiResponse = aiResultBuilder.toString();
-            // 添加错误信息到对话历史
-            String errorMessage = "AI 回复失败" + throwable.getMessage() + aiResponse;
-            chatHistoryService.addChatMessage(appId, errorMessage, ChatHistoryMessageTypeEnum.AI.getValue(), loginUser.getId());
+        return Flux.defer(() -> {
+            // 收集器属于单次订阅，重复订阅不会把上次回复拼进当前历史。
+            StringBuilder aiResultBuilder = new StringBuilder();
+            return originFlux.doOnNext(aiResultBuilder::append)
+                    .doOnComplete(() -> chatHistoryService.addChatMessage(appId, aiResultBuilder.toString(),
+                            ChatHistoryMessageTypeEnum.AI.getValue(), loginUser.getId()))
+                    .doOnError(throwable -> chatHistoryService.addChatMessage(appId,
+                            "AI 回复失败：" + throwable.getMessage() + aiResultBuilder,
+                            ChatHistoryMessageTypeEnum.AI.getValue(), loginUser.getId()));
         });
 
     }

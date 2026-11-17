@@ -6,6 +6,7 @@ import com.zzx.zzxaicode.controller.WorkflowSseController;
 import com.zzx.zzxaicode.core.AiCodeGeneratorFacade;
 import com.zzx.zzxaicode.core.builder.VueProjectBuilder;
 import com.zzx.zzxaicode.core.handler.JsonMessageStreamHandler;
+import com.zzx.zzxaicode.core.handler.SimpleTextStreamHandler;
 import com.zzx.zzxaicode.exception.BusinessException;
 import com.zzx.zzxaicode.model.enums.CodeGenTypeEnum;
 import com.zzx.zzxaicode.model.po.User;
@@ -127,6 +128,18 @@ class SpringAiIntegrationBoundaryTest {
         assertNotNull(parts);
         assertTrue(String.join("", parts).contains("[工具失败]"));
         verify(history).addChatMessage(eq(11L), contains("错误：工具参数必须是有效 JSON 对象"), eq("ai"), eq(1L));
+    }
+
+    /** 文本流重复订阅时分别记录回复，不能复用第一次订阅的累积器。 */
+    @Test
+    void textStreamHistoryIsIsolatedPerSubscription() {
+        var history = mock(ChatHistoryService.class);
+        var user = new User();
+        user.setId(1L);
+        var stream = new SimpleTextStreamHandler().handle(Flux.just("one", "two"), history, 11, user);
+        assertEquals(List.of("one", "two"), stream.collectList().block(Duration.ofSeconds(3)));
+        assertEquals(List.of("one", "two"), stream.collectList().block(Duration.ofSeconds(3)));
+        verify(history, times(2)).addChatMessage(11L, "onetwo", "ai", 1L);
     }
 
     /** 监控保留模型/用户/应用标签，只记录服务端原始 usage 中实际存在的字段。 */

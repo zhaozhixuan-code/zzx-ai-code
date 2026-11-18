@@ -20,14 +20,19 @@
           ghost
           @click="downloadCode"
           :loading="downloading"
-          :disabled="!isOwner"
+          :disabled="!isOwner || isGenerating"
         >
           <template #icon>
             <DownloadOutlined />
           </template>
           下载代码
         </a-button>
-        <a-button type="primary" @click="deployApp" :loading="deploying">
+        <a-button
+          type="primary"
+          @click="deployApp"
+          :loading="deploying"
+          :disabled="isGenerating || !isOwner"
+        >
           <template #icon>
             <CloudUploadOutlined />
           </template>
@@ -48,6 +53,12 @@
           <span v-if="isGenerating" class="chat-status">正在生成</span>
           <span v-else class="chat-hint">描述想调整的内容</span>
         </div>
+        <QualityReportPanel v-if="isOwner" :task="qualityTask" @refresh="loadQualityReport" />
+        <a-alert v-if="qualityReportError" :message="qualityReportError" type="warning" show-icon>
+          <template #action
+            ><a-button size="small" @click="loadQualityReport">重试</a-button></template
+          >
+        </a-alert>
         <!-- 消息区域 -->
         <div class="messages-container" ref="messagesContainer">
           <div v-if="messages.length === 0" class="conversation-empty">
@@ -144,6 +155,7 @@
               :disabled="isGenerating"
             />
             <div class="input-actions">
+              <a-button v-if="isGenerating" danger @click="cancelGeneration">停止生成</a-button>
               <a-button
                 type="primary"
                 @click="sendMessage"
@@ -190,7 +202,7 @@
             <DesktopOutlined class="placeholder-icon" aria-hidden="true" />
             <p>生成完成后，页面会显示在这里</p>
           </div>
-          <div v-else-if="isGenerating" class="preview-loading">
+          <div v-else-if="isGenerating && !previewUrl" class="preview-loading">
             <a-spin size="large" />
             <p>正在生成网站...</p>
           </div>
@@ -239,6 +251,8 @@ import { CodeGenTypeEnum, formatCodeGenType } from '@/utils/codeGenTypes'
 import request from '@/request'
 
 import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
+import QualityReportPanel from '@/components/QualityReportPanel.vue'
+import { getQualityReport, type QualityTask } from '@/api/qualityController'
 import AppDetailModal from '@/components/AppDetailModal.vue'
 import DeploySuccessModal from '@/components/DeploySuccessModal.vue'
 import aiAvatar from '@/assets/aiAvatar.png'
@@ -278,6 +292,47 @@ const isGenerating = ref(false)
 const messagesContainer = ref<HTMLElement>()
 let isChatPageActive = true
 let activeEventSource: EventSource | null = null
+const qualityTask = ref<QualityTask>()
+const qualityReportError = ref('')
+
+/** 读取最近报告；旧请求返回后不能覆盖正在执行的新任务。 */
+const loadQualityReport = async () => {
+  if (!isOwner.value || appInfo.value?.codeGenType !== CodeGenTypeEnum.VUE_PROJECT) return
+  const id = String(appId.value)
+  const source = activeEventSource
+  const taskAtStart = qualityTask.value?.taskId
+  try {
+    const res = await getQualityReport(id)
+    if (
+      !isChatPageActive ||
+      String(appId.value) !== id ||
+      activeEventSource !== source ||
+      isGenerating.value ||
+      qualityTask.value?.taskId !== taskAtStart
+    )
+      return
+    if (res.data.code !== 0) throw new Error(res.data.message || '报告读取失败')
+    qualityTask.value = res.data.data
+    qualityReportError.value = ''
+  } catch {
+    if (isChatPageActive && !isGenerating.value)
+      qualityReportError.value = '质量报告暂不可用，可点击刷新报告重试。'
+  }
+}
+
+/** 关闭当前 SSE 触发服务端取消，旧预览保留；最终状态以服务端报告为准。 */
+const cancelGeneration = () => {
+  activeEventSource?.close()
+  activeEventSource = null
+  isGenerating.value = false
+  messages.value.forEach((item) => {
+    item.loading = false
+  })
+  message.info('已请求停止生成，正在回收执行资源')
+  setTimeout(() => {
+    if (isChatPageActive) void loadQualityReport()
+  }, 1000)
+}
 
 // 对话历史相关
 const loadingHistory = ref(false)
@@ -397,12 +452,13 @@ const fetchAppInfo = async () => {
     if (!isChatPageActive || String(route.params.id) !== id) return
     if (res.data.code === 0 && res.data.data) {
       appInfo.value = res.data.data
+      await loadQualityReport()
 
       // 先加载对话历史
       await loadChatHistory()
       if (!isChatPageActive || String(route.params.id) !== id) return
-      // 如果有至少2条对话记录，展示对应的网站
-      if (messages.value.length >= 2) {
+      // 有聊天记录时读取稳定预览路径；新任务只有成功终态才切换版本。
+      if (messages.value.length >= 2 && !isGenerating.value) {
         updatePreview()
       }
       // 检查是否需要自动发送初始提示词
@@ -512,6 +568,9 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
   let eventSource: EventSource | null = null
   // 本轮连接的终态：成功、业务错误或断流后都屏蔽迟到回调，避免失败消息被覆盖。
   let streamCompleted = false
+  let taskId: string | undefined
+  qualityTask.value = undefined
+  qualityReportError.value = ''
 
   /** 终止失败请求，阻止 EventSource 重连重发生成，并禁止迟到的 done 覆盖失败。
    * @param error 协议解析、业务载荷或连接异常。
@@ -542,11 +601,35 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
     })
     activeEventSource = eventSource
 
+    // 独立质量事件只更新报告；同一连接不接受其他任务的迟到快照。
+    eventSource.addEventListener('quality', (event: MessageEvent) => {
+      if (!isChatPageActive || streamCompleted || activeEventSource !== eventSource) return
+      try {
+        const task = JSON.parse(event.data) as QualityTask
+        if (
+          !task.taskId ||
+          String(task.appId) !== String(appId.value) ||
+          (taskId && task.taskId !== taskId)
+        )
+          return
+        taskId = task.taskId
+        qualityTask.value = task
+        if (
+          task.status === 'FAILED' ||
+          task.status === 'CANCELLED' ||
+          task.status === 'INTERRUPTED'
+        )
+          failStream(new Error(task.message))
+      } catch (error) {
+        failStream(error)
+      }
+    })
+
     let fullContent = ''
 
     // 处理接收到的消息
     eventSource.onmessage = function (event) {
-      if (!isChatPageActive || streamCompleted) return
+      if (!isChatPageActive || streamCompleted || activeEventSource !== eventSource) return
 
       try {
         // 解析JSON包装的数据
@@ -568,7 +651,14 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
 
     // done 是后端解析保存或 Vue 构建成功后的完成信号，只有此事件允许刷新预览。
     eventSource.addEventListener('done', function () {
-      if (!isChatPageActive || streamCompleted) return
+      if (!isChatPageActive || streamCompleted || activeEventSource !== eventSource) return
+      if (
+        appInfo.value?.codeGenType === CodeGenTypeEnum.VUE_PROJECT &&
+        qualityTask.value?.status !== 'SUCCEEDED'
+      ) {
+        failStream(new Error('质量任务未确认成功'))
+        return
+      }
 
       streamCompleted = true
       isGenerating.value = false
@@ -584,7 +674,7 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
 
     // 处理business-error事件（后端限流等错误）
     eventSource.addEventListener('business-error', function (event: MessageEvent) {
-      if (!isChatPageActive || streamCompleted) return
+      if (!isChatPageActive || streamCompleted || activeEventSource !== eventSource) return
 
       try {
         const errorData = JSON.parse(event.data)
@@ -608,7 +698,13 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
 
     // CONNECTING 也可能是异常断流后的自动重连，不能当作成功；主动关闭以免重发生成请求。
     eventSource.onerror = function () {
-      if (!isChatPageActive || streamCompleted || !isGenerating.value) return
+      if (
+        !isChatPageActive ||
+        streamCompleted ||
+        !isGenerating.value ||
+        activeEventSource !== eventSource
+      )
+        return
       failStream(new Error('SSE连接中断，生成未完成'))
     }
   } catch (error) {
@@ -621,9 +717,10 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
 const handleError = (error: unknown, aiMessageIndex: number) => {
   if (!isChatPageActive) return
   console.error('生成代码失败：', error)
-  messages.value[aiMessageIndex].content = '抱歉，生成过程中出现了错误，请重试。'
+  const reason = error instanceof Error ? error.message : '生成失败，请重试'
+  messages.value[aiMessageIndex].content += `\n\n生成未完成：${reason}`
   messages.value[aiMessageIndex].loading = false
-  message.error('生成失败，请重试')
+  message.error(reason)
   isGenerating.value = false
 }
 
@@ -632,7 +729,10 @@ const updatePreview = () => {
   if (appId.value) {
     const codeGenType = appInfo.value?.codeGenType || CodeGenTypeEnum.HTML
     const newPreviewUrl = getStaticPreviewUrl(codeGenType, appId.value)
-    previewUrl.value = newPreviewUrl
+    previewUrl.value =
+      qualityTask.value?.status === 'SUCCEEDED'
+        ? `${newPreviewUrl}?v=${qualityTask.value.taskId}`
+        : newPreviewUrl
     previewReady.value = true
   }
 }

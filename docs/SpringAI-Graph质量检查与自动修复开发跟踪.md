@@ -155,7 +155,7 @@ Service、数据库连接、浏览器、进程、SSE 连接和事件发送器属
 | S00 | 确认方案范围、官方资料和当前代码基线，建立跟踪文档 | 无 | 已完成 | 本文第 1～4 节；仅完成文档与静态核对 |
 | S01 | 锁定 Graph 依赖并验证最小状态路由 | S00 | 已完成 | Java 21 + Maven 项目编译与 Graph 原型运行通过，任务隔离断言通过；不配置检查点，以 taskId 区分任务，不承诺重启续跑 |
 | S02 | 定义任务状态、报告及配置契约 | S01 | 已完成 | 任务/报告数据契约、Graph 合并策略、Spring 配置绑定与非法预算拒绝通过；业务轮次执行在 S08 验证 |
-| S03 | 验证 Graph 与现有模型、工具事件的流式桥接 | S01、S02 | 未开始 | — |
+| S03 | 验证 Graph 与现有模型、工具事件的流式桥接 | S01、S02 | 已完成 | GraphEventBridgeTest 2 个测试通过：节点结束前收到事件、一次订阅、取消模型及异常传播；无需求时 ERROR，不无界缓存 |
 | S04 | 实现任务工作区、全流程互斥和产物确认边界 | S02、S03 | 未开始 | — |
 | S05 | 将既有 Vue 生成能力接入生成节点 | S03、S04 | 未开始 | — |
 | S06 | 实现真实构建检查及结构化诊断 | S02、S04 | 未开始 | — |
@@ -351,6 +351,8 @@ Maven 解析、编译和测试尚无本次执行授权；需要时记录具体�
 - [ ] 配置、日志、注释、已知限制及进度文档与交付一致。
 
 ## 9. 决策与待验证事项
+
+S03 实测：`mvn.cmd -Dtest=GraphEventBridgeTest test` 通过。Graph 节点返回可取消 future，既有模型 JSON 字符串事件经单次订阅的执行上下文实时输出；图状态中不存 Flux、事件出口或订阅。普通文本链路在 S10 将质量事件分流为命名 SSE：`quality-started`、`quality-check-result`、`repair-started`、`repair-completed`、`quality-finished`。异常终态继续使用 error 信号，取消不启动后续节点。依据 D03 及 1.1.2.0 AsyncNodeAction 源码核对，未使用官方示例的全量 collectList 阻塞方式。
 
 2026-11-18 最新验证：用户明确授权本次 Maven 解析、编译及相关定向测试。使用 Java 21 执行 `mvn.cmd -Dtest=QualityContractTest,QualityCheckGraphPrototypeTest test`，9 个测试全部通过；历史记录中“待授权/未执行”仅描述当时状态。检查点策略为不启用恢复检查点，taskId 使用服务端任务 UUID，业务报告独立持久化。补充核对 [Boot 3.5 配置绑定](https://docs.spring.io/spring-boot/3.5/reference/features/external-config.html) 和 [Graph 1.1.2.0 AppendStrategy 源码](https://github.com/alibaba/spring-ai-alibaba/blob/v1.1.2.0/spring-ai-alibaba-graph-core/src/main/java/com/alibaba/cloud/ai/graph/state/strategy/AppendStrategy.java)。
 

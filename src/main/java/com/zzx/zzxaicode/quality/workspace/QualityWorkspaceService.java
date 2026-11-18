@@ -41,7 +41,8 @@ public class QualityWorkspaceService {
                 /** 拷贝源目录结构；不进入依赖、产物或链接目录。 */
                 @Override
                 public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-                    if (!dir.equals(previous) && EXCLUDED.contains(dir.getFileName().toString())) {
+                    if (!dir.equals(previous) && (EXCLUDED.contains(dir.getFileName().toString())
+                            || dir.getFileName().toString().startsWith("quality-"))) {
                         return FileVisitResult.SKIP_SUBTREE;
                     }
                     requireNoLink(dir);
@@ -54,7 +55,8 @@ public class QualityWorkspaceService {
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                     requireNoLink(file);
                     if (attrs.isRegularFile() && !EXCLUDED.contains(file.getFileName().toString())
-                            && !file.getFileName().toString().startsWith(".env")) {
+                            && !file.getFileName().toString().startsWith(".env")
+                            && !file.getFileName().toString().startsWith("quality-")) {
                         Files.copy(file, workspace.source().resolve(previous.relativize(file)));
                     }
                     return FileVisitResult.CONTINUE;

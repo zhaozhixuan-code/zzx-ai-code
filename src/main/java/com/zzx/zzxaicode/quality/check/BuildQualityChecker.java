@@ -139,6 +139,15 @@ public class BuildQualityChecker {
         Path index = artifact.resolve("index.html");
         if (!Files.isRegularFile(index)) return false;
         QualityWorkspaceService.requireNoLink(index);
+        if(Files.size(index)>2*1024*1024) return false;
+        // 后续预览和部署会读取整个产物树，因此不能只校验 index 中直接引用的文件。
+        try(var paths=Files.walk(artifact)) {
+            var iterator=paths.iterator(); int count=0;
+            while(iterator.hasNext()) {
+                if(++count>10000) return false;
+                QualityWorkspaceService.requireNoLink(iterator.next());
+            }
+        }
         var matcher = Pattern.compile("(?:src|href)=[\"']([^\"']+)[\"']").matcher(Files.readString(index));
         while (matcher.find()) {
             String ref = matcher.group(1).split("[?#]", 2)[0];

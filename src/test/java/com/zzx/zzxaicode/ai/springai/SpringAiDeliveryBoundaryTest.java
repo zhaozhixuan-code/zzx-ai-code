@@ -3,6 +3,7 @@ package com.zzx.zzxaicode.ai.springai;
 import com.zzx.zzxaicode.constants.AppConstant;
 import com.zzx.zzxaicode.controller.StaticResourceController;
 import com.zzx.zzxaicode.core.builder.VueProjectBuilder;
+import com.zzx.zzxaicode.quality.workspace.*;
 import com.zzx.zzxaicode.model.enums.CodeGenTypeEnum;
 import com.zzx.zzxaicode.model.po.App;
 import com.zzx.zzxaicode.model.po.User;
@@ -50,7 +51,7 @@ class SpringAiDeliveryBoundaryTest {
             String resourcePath = type == CodeGenTypeEnum.VUE_PROJECT ? "/dist/index.html" : "/";
             var request = new MockHttpServletRequest("GET", "/api/static/" + folder + resourcePath);
             request.setAttribute(HandlerMapping.PATH_WITHIN_HANDLER_MAPPING_ATTRIBUTE, "/static/" + folder + resourcePath);
-            var response = new StaticResourceController().serveStaticResource(folder, request);
+            var response = new StaticResourceController(new QualityWorkspaceService()).serveStaticResource(folder, request);
             assertEquals(200, response.getStatusCode().value());
             assertEquals("text/html; charset=UTF-8", response.getHeaders().getFirst("Content-Type"));
             assertEquals(type == CodeGenTypeEnum.VUE_PROJECT ? "<h1>built</h1>" : "<h1>source</h1>",
@@ -83,12 +84,14 @@ class SpringAiDeliveryBoundaryTest {
             var builder = mock(VueProjectBuilder.class);
             when(builder.buildProject(sourcePath)).thenReturn(true);
             ReflectionTestUtils.setField(service, "vueProjectBuilder", builder);
+            ReflectionTestUtils.setField(service, "qualityWorkspaces",new QualityWorkspaceService());
+            ReflectionTestUtils.setField(service, "qualityAppLock",new QualityAppLock());
             assertEquals(AppConstant.CODE_DEPLOY_HOST + "/" + app.getDeployKey() + "/", service.deployApp(id, owner));
             Path deployed = Path.of(AppConstant.CODE_DEPLOY_ROOT_DIR, app.getDeployKey());
             assertEquals(type == CodeGenTypeEnum.VUE_PROJECT ? "<h1>built</h1>" : "<h1>source</h1>",
                     Files.readString(deployed.resolve("index.html")));
             if (type == CodeGenTypeEnum.VUE_PROJECT) {
-                verify(builder).buildProject(sourcePath);
+                verifyNoInteractions(builder);
                 assertTrue(Files.isRegularFile(deployed.resolve("assets/built.js")));
                 assertFalse(Files.exists(deployed.resolve("node_modules")));
             } else {

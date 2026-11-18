@@ -39,6 +39,8 @@ import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Flux;
 
 import java.io.File;
+import java.io.IOException;
+import com.zzx.zzxaicode.quality.workspace.*;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -87,6 +89,9 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
     @Resource
     private CodeGenTypeRouter codeGenTypeRouter;
 
+    @Resource private QualityWorkspaceService qualityWorkspaces;
+    @Resource private QualityAppLock qualityAppLock;
+
     /**
      * 获取 AI 生成代码
      *
@@ -120,7 +125,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         );
         try {
             // 7. 组装时将标签复制到模型请求选项，不依赖后续订阅线程的 ThreadLocal。
-            Flux<String> codeStream = aiCodeGeneratorFacade.generateAndSaveCodeStream(message, genType, appId);
+            Flux<String> codeStream = aiCodeGeneratorFacade.generateAndSaveCodeStream(message, genType, appId,loginUser.getId());
             // 8. 收集 AI 响应内容并在完成后添加到对话历史。
             return streamHandlerExecutor.doExecute(codeStream, chatHistoryService, appId, loginUser, genType);
         } finally {
@@ -278,6 +283,8 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         ThrowUtils.throwIf(app == null, ErrorCode.NOT_FOUND_ERROR, "应用不存在");
         // 3. 校验用户是否有权限部署该应用
         ThrowUtils.throwIf(!loginUser.getId().equals(app.getUserId()), ErrorCode.NO_AUTH_ERROR, "无权限访问该应用");
+        // 部署全程持有与生成相同的租约，避免读取尚在确认或切换的源码和产物。
+        try (var lease=qualityAppLock.acquire(appId)) {
         // 4. 检查是否已经有 deployKey
         String deployKey = app.getDeployKey();
         if (StrUtil.isBlank(deployKey)) {
@@ -286,7 +293,8 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         // 5. 检查原文件目录是否存在
         String codeGenType = app.getCodeGenType();
         String sourceDirName = codeGenType + "_" + appId;
-        String sourceDirPath = AppConstant.CODE_OUTPUT_ROOT_DIR + File.separator + sourceDirName;
+        String sourceDirPath = "vue_project".equals(codeGenType)?qualityWorkspaces.publishedSource(appId).toString()
+                :AppConstant.CODE_OUTPUT_ROOT_DIR + File.separator + sourceDirName;
         File sourceDir = new File(sourceDirPath);
         if (!sourceDir.exists() || !sourceDir.isDirectory()) {
             throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "应用代码不存在，请先生成代码");
@@ -294,11 +302,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         // 6. Vue 项目特殊处理，执行构建
         CodeGenTypeEnum codeGenTypeEnum = CodeGenTypeEnum.getEnumByValue(codeGenType);
         if (codeGenTypeEnum == CodeGenTypeEnum.VUE_PROJECT) {
-            // Vue 项目需要构建
-            boolean buildResult = vueProjectBuilder.buildProject(sourceDirPath);
-            if (!buildResult) {
-                throw new BusinessException(ErrorCode.SYSTEM_ERROR, "构建 Vue 项目失败");
-            }
+            // 发布已确认的产物，不在宿主机重新执行生成项目，也不因部署覆盖检查证据。
             // 检查 dist 目录是否存在
             File distDir = new File(sourceDirPath, "dist");
             ThrowUtils.throwIf(!distDir.exists(), ErrorCode.SYSTEM_ERROR, "构建 Vue 项目完成，但未生成dist目录");
@@ -328,6 +332,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         // 10. 异步生成封面截图并且更新封面
         generateAppScreenshot(appId, appDeployUrl);
         return appDeployUrl;
+        } catch(IOException error) { throw new BusinessException(ErrorCode.SYSTEM_ERROR,"读取成功产物失败"); }
     }
 
     /**

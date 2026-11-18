@@ -47,6 +47,8 @@ public class JsonMessageStreamHandler {
      * @return 当前应展示的文本，空的 AI 文本片段由调用方过滤
      */
     private String handleChunk(String chunk, StringBuilder history) {
+        // 质量事件由服务端保留前缀标识，单独交给 SSE；不会进入模型可见聊天历史。
+        if(chunk.startsWith(com.zzx.zzxaicode.quality.QualityWorkflowService.EVENT_PREFIX)) return chunk;
         JSONObject event = JSONUtil.parseObj(chunk);
         String type = event.getStr("type");
         if ("ai_response".equals(type)) {

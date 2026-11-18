@@ -6,6 +6,7 @@ import com.zzx.zzxaicode.constants.UserConstant;
 import com.zzx.zzxaicode.controller.AppController;
 import com.zzx.zzxaicode.core.AiCodeGeneratorFacade;
 import com.zzx.zzxaicode.core.builder.VueProjectBuilder;
+import com.zzx.zzxaicode.quality.QualityWorkflowService;
 import com.zzx.zzxaicode.core.handler.JsonMessageStreamHandler;
 import com.zzx.zzxaicode.core.handler.StreamHandlerExecutor;
 import com.zzx.zzxaicode.exception.BusinessException;
@@ -80,6 +81,7 @@ class SpringAiApplicationEntryTest {
                 case VUE_PROJECT -> "{\"type\":\"ai_response\",\"data\":\"Vue ready\"}";
             };
             when(fixture.generator.stream(fixture.appId, "page", type)).thenReturn(Flux.just(output));
+            when(fixture.quality.stream(fixture.appId,1L,"page")).thenReturn(Flux.just(output));
             var events = fixture.controller.chatToGenCode(fixture.appId, "page", fixture.request()).collectList()
                     .block(Duration.ofSeconds(5));
             assertNotNull(events);
@@ -89,7 +91,7 @@ class SpringAiApplicationEntryTest {
             verify(fixture.history).addChatMessage(fixture.appId, "page", "user", 1L);
             verify(fixture.history).addChatMessage(eq(fixture.appId), anyString(), eq("ai"), eq(1L));
             if (type == CodeGenTypeEnum.VUE_PROJECT) {
-                verify(fixture.builder).buildProject(anyString());
+                verify(fixture.quality).stream(fixture.appId,1L,"page");
             }
         }
     }
@@ -107,7 +109,7 @@ class SpringAiApplicationEntryTest {
                 default -> Flux.just("{\"type\":\"ai_response\",\"data\":\"ready\"}");
             };
             when(fixture.generator.stream(fixture.appId, "page", type)).thenReturn(output);
-            when(fixture.builder.buildProject(anyString())).thenReturn(false);
+            when(fixture.quality.stream(fixture.appId,1L,"page")).thenReturn(Flux.error(new BusinessException(ErrorCode.OPERATION_ERROR,"质量检查失败")));
             List<String> eventNames = new ArrayList<>();
             assertThrows(RuntimeException.class, () -> fixture.controller.chatToGenCode(fixture.appId, "page", fixture.request())
                     .doOnNext(event -> eventNames.add(event.event())).blockLast(Duration.ofSeconds(5)));
@@ -134,7 +136,7 @@ class SpringAiApplicationEntryTest {
         });
         var realGenerator = new SpringAiCodeGenerator(model, model, new SpringAiPromptLoader(), memory,
                 mock(SpringAiToolCallbacks.class), new SpringAiProperties());
-        ReflectionTestUtils.setField(fixture.service, "aiCodeGeneratorFacade", new AiCodeGeneratorFacade(realGenerator, fixture.builder));
+        ReflectionTestUtils.setField(fixture.service, "aiCodeGeneratorFacade", new AiCodeGeneratorFacade(realGenerator, fixture.quality));
         var result = fixture.service.chatToGenCode(fixture.appId, "page", fixture.owner);
         assertNull(MonitorContextHolder.getContext());
         result.subscribeOn(Schedulers.boundedElastic()).blockLast(Duration.ofSeconds(5));
@@ -151,6 +153,7 @@ class SpringAiApplicationEntryTest {
         final ChatHistoryService history = mock(ChatHistoryService.class);
         final AiCodeGenerator generator = mock(AiCodeGenerator.class);
         final VueProjectBuilder builder = mock(VueProjectBuilder.class);
+        final QualityWorkflowService quality = mock(QualityWorkflowService.class);
 
         /** 只替换持久化和外部能力，保留应用入口、权限判断、门面与展示处理。 */
         Fixture() {
@@ -162,7 +165,7 @@ class SpringAiApplicationEntryTest {
             when(builder.buildProject(anyString())).thenReturn(true);
             var handlers = new StreamHandlerExecutor();
             ReflectionTestUtils.setField(handlers, "jsonMessageStreamHandler", new JsonMessageStreamHandler());
-            ReflectionTestUtils.setField(service, "aiCodeGeneratorFacade", new AiCodeGeneratorFacade(generator, builder));
+            ReflectionTestUtils.setField(service, "aiCodeGeneratorFacade", new AiCodeGeneratorFacade(generator, quality));
             ReflectionTestUtils.setField(service, "chatHistoryService", history);
             ReflectionTestUtils.setField(service, "streamHandlerExecutor", handlers);
             ReflectionTestUtils.setField(controller, "appService", service);

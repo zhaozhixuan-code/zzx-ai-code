@@ -63,6 +63,7 @@ public class QualityWorkflowService {
 
     /** @param appId 应用 @param userId 用户 @param requirement 原始需求 @return 已保存初始报告的独占执行资源 */
     private Run open(long appId,long userId,String requirement) throws IOException {
+        if(!settings.isEnabled()) throw new BusinessException(ErrorCode.OPERATION_ERROR,"质量检查已停用，Vue 生成暂不可用");
         if(appId<=0 || userId<=0) throw new BusinessException(ErrorCode.PARAMS_ERROR,"任务归属无效");
         var lease=locks.acquire(appId);
         try {

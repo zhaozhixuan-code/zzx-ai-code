@@ -4,6 +4,7 @@ import reactor.core.Disposable;
 import reactor.core.Disposables;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
+import reactor.core.publisher.Mono;
 
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -50,8 +51,12 @@ public final class GraphEventBridge {
          * @return 可作为 AsyncNodeAction 结果的 future
          */
         public CompletableFuture<Map<String, Object>> forward(Flux<String> source, Map<String, Object> update) {
-            CompletableFuture<Map<String, Object>> future = source.doOnNext(this::emit).then()
-                    .thenReturn(update).toFuture();
+            return complete(source.doOnNext(this::emit).then().thenReturn(update));
+        }
+
+        /** @param result 异步业务节点产生的状态增量 @return 随 Graph 一起取消的执行 future */
+        public CompletableFuture<Map<String,Object>> complete(Mono<Map<String,Object>> result) {
+            CompletableFuture<Map<String, Object>> future = result.toFuture();
             Disposable cancellation = () -> future.cancel(true);
             resources.add(cancellation);
             future.whenComplete((value, error) -> resources.remove(cancellation));

@@ -132,6 +132,7 @@ public class SpringAiCodeGenerator implements AiCodeGenerator {
         private final long appId;
         private final String userId;
         private final List<Message> history;
+        private final List<Message> previousHistory;
         private final Path workspace;
         private final Object fileGate = new Object();
         private final AtomicBoolean cancelled = new AtomicBoolean();
@@ -141,6 +142,7 @@ public class SpringAiCodeGenerator implements AiCodeGenerator {
             this.appId = appId;
             this.userId = userId;
             this.history = history;
+            this.previousHistory = List.copyOf(history.subList(0, Math.max(0, history.size()-1)));
             this.workspace = workspace;
         }
 
@@ -182,6 +184,11 @@ public class SpringAiCodeGenerator implements AiCodeGenerator {
         /** 保存最终通过的上下文；调用者负责与报告和产物确认顺序协调。 */
         public void save() {
             conversations.save(appId, history);
+        }
+
+        /** 产物或报告确认失败时恢复任务开始前的模型消息，避免上下文描述未发布的代码。 */
+        public void restorePreviousContext() {
+            conversations.save(appId, previousHistory);
         }
 
         /** 设置取消标记并等待实际文件操作返回，然后才允许任务租约释放。 */

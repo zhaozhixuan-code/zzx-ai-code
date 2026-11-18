@@ -126,7 +126,7 @@ public class BuildQualityChecker {
         List<String> result = new ArrayList<>(List.of("docker", "run", "--rm", "--pull=never", "--name", name,
                 "--memory=768m", "--memory-swap=768m", "--cpus=1", "--pids-limit=128", "--cap-drop=ALL",
                 "--security-opt=no-new-privileges", "--read-only", "--tmpfs", "/tmp:rw,nosuid,size=256m",
-                "--network=" + (install ? settings.getInstallNetwork() : "none"), "--user=1000:1000",
+                "--network=" + (install ? settings.getInstallNetwork() : "none"), "--user="+settings.getBuildUser(),
                 "--env", "npm_config_cache=/tmp/npm", "--mount", "type=bind,source=" + source + ",target=/workspace",
                 "--workdir=/workspace", settings.getBuildImage()));
         result.addAll(List.of(args));

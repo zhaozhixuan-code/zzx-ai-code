@@ -60,6 +60,18 @@ class QualityContractTest {
     @org.springframework.boot.context.properties.EnableConfigurationProperties(QualityCheckProperties.class)
     static class QualityConfig { }
 
+    /** Linux 目录身份可配置，但容器不能以 root 用户或 root 组执行工程。 */
+    @Test
+    void shouldAllowOnlyNonRootBuildIdentity() {
+        QualityCheckProperties settings = new QualityCheckProperties();
+        settings.setBuildUser("1001:1002");
+        assertDoesNotThrow(settings::validate);
+        for (String identity : List.of("0:1000", "1000:0", "root", "-1:1000", "1000:1000 --privileged")) {
+            settings.setBuildUser(identity);
+            assertThrows(IllegalArgumentException.class, settings::validate);
+        }
+    }
+
     /** 必选项为 SKIPPED 或 ERROR 时，报告不能判定通过。 */
     @Test
     void shouldRequireExplicitPassedStatusForRequiredItems() {

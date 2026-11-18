@@ -35,12 +35,15 @@ public class QualityCheckProperties {
     private String buildImage = "node:22.16.0-bookworm-slim";
     /** 依赖安装使用的受控 Docker 网络；生产应配置限制出口的专用网络。 */
     private String installNetwork = "bridge";
+    /** 容器非特权 UID:GID，Linux 上应与任务目录的可写权限匹配。 */
+    private String buildUser = "1000:1000";
 
     /** 校验质量任务预算，阻止负数、零超时及整体期限不足以覆盖任一阶段。 */
     @PostConstruct
     public void validate() {
         Assert.hasText(buildImage, "app.quality.build-image 不能为空");
         Assert.hasText(installNetwork, "app.quality.install-network 不能为空");
+        Assert.isTrue(buildUser!=null && buildUser.matches("[1-9][0-9]*:[1-9][0-9]*"),"app.quality.build-user 必须是非 root 的 UID:GID");
         Assert.isTrue(maxRepairAttempts >= 0,
                 "app.quality.max-repair-attempts 不能小于 0");
         Assert.isTrue(maxModelToolRounds > 0,
@@ -126,4 +129,8 @@ public class QualityCheckProperties {
     public String getInstallNetwork() { return installNetwork; }
     /** @param value 管理员预先配置的网络名 */
     public void setInstallNetwork(String value) { installNetwork = value; }
+    /** @return 构建容器使用的非特权 UID:GID */
+    public String getBuildUser() { return buildUser; }
+    /** @param value 管理员配置的目录写入身份，不能由模型覆盖 */
+    public void setBuildUser(String value) { buildUser=value; }
 }

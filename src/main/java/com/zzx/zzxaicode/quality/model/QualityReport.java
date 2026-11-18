@@ -45,8 +45,9 @@ public record QualityReport(
         items = items == null ? List.of() : List.copyOf(items);
     }
 
-    /** 必须至少有一个检查项，且所有必选项明确 PASSED 才能判定本轮通过。 */
+    /** 检查必须结束且包含必选项，所有必选项明确 PASSED 才能判定本轮通过。 */
     public boolean isPassed() {
-        return !items.isEmpty() && items.stream().allMatch(QualityCheckItem::isPassingRequirement);
+        return finishedAt != null && items.stream().anyMatch(QualityCheckItem::required)
+                && items.stream().allMatch(QualityCheckItem::isPassingRequirement);
     }
 }

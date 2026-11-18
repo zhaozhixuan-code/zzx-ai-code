@@ -153,8 +153,8 @@ Service、数据库连接、浏览器、进程、SSE 连接和事件发送器属
 | 步骤 | 需求与目标 | 前置依赖 | 状态 | 完成证据 |
 | --- | --- | --- | --- | --- |
 | S00 | 确认方案范围、官方资料和当前代码基线，建立跟踪文档 | 无 | 已完成 | 本文第 1～4 节；仅完成文档与静态核对 |
-| S01 | 锁定 Graph 依赖并验证最小状态路由 | S00 | 待验证 | `pom.xml` 接入 SAA BOM 与 Graph Core；`QualityCheckGraphPrototype` 与定向测试已完成；Maven 验证待授权 |
-| S02 | 定义任务状态、报告及配置契约 | S01 | 待验证 | `quality/model`、`QualityGraphStateContract`、`QualityCheckProperties` 与定向测试已完成；Maven/JUnit 验证待授权 |
+| S01 | 锁定 Graph 依赖并验证最小状态路由 | S00 | 已完成 | Java 21 + Maven 项目编译与 Graph 原型运行通过，任务隔离断言通过；不配置检查点，以 taskId 区分任务，不承诺重启续跑 |
+| S02 | 定义任务状态、报告及配置契约 | S01 | 已完成 | 任务/报告数据契约、Graph 合并策略、Spring 配置绑定与非法预算拒绝通过；业务轮次执行在 S08 验证 |
 | S03 | 验证 Graph 与现有模型、工具事件的流式桥接 | S01、S02 | 未开始 | — |
 | S04 | 实现任务工作区、全流程互斥和产物确认边界 | S02、S03 | 未开始 | — |
 | S05 | 将既有 Vue 生成能力接入生成节点 | S03、S04 | 未开始 | — |
@@ -351,6 +351,8 @@ Maven 解析、编译和测试尚无本次执行授权；需要时记录具体�
 - [ ] 配置、日志、注释、已知限制及进度文档与交付一致。
 
 ## 9. 决策与待验证事项
+
+2026-11-18 最新验证：用户明确授权本次 Maven 解析、编译及相关定向测试。使用 Java 21 执行 `mvn.cmd -Dtest=QualityContractTest,QualityCheckGraphPrototypeTest test`，9 个测试全部通过；历史记录中“待授权/未执行”仅描述当时状态。检查点策略为不启用恢复检查点，taskId 使用服务端任务 UUID，业务报告独立持久化。补充核对 [Boot 3.5 配置绑定](https://docs.spring.io/spring-boot/3.5/reference/features/external-config.html) 和 [Graph 1.1.2.0 AppendStrategy 源码](https://github.com/alibaba/spring-ai-alibaba/blob/v1.1.2.0/spring-ai-alibaba-graph-core/src/main/java/com/alibaba/cloud/ai/graph/state/strategy/AppendStrategy.java)。
 
 | 事项 | 当前结论 | 后续落点 |
 | --- | --- | --- |

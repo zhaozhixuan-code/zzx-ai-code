@@ -60,7 +60,8 @@ public final class QualityGraphStateContract {
         replaceKeys.put(DEADLINE, new ReplaceStrategy());
         replaceKeys.put(QUALITY_REPORT, new ReplaceStrategy());
         Map<String, KeyStrategy> strategies = new HashMap<>(replaceKeys);
-        strategies.put(REPAIR_RECORDS, new AppendStrategy());
+        // 节点仅返回本轮增量；重放同一增量不能重复计入历史。
+        strategies.put(REPAIR_RECORDS, new AppendStrategy(false));
         return () -> new HashMap<>(strategies);
     }
 }

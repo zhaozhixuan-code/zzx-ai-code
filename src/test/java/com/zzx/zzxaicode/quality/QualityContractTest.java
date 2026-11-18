@@ -25,6 +25,41 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 /** S02 状态、报告和配置契约的边界验证。 */
 class QualityContractTest {
 
+    /** 未结束的检查和只有可选项的报告不能误判成功。 */
+    @Test
+    void shouldRejectIncompleteOrOptionalOnlyReport() {
+        QualityReport passed = report(QualityCheckItemStatus.PASSED);
+        assertFalse(new QualityReport(passed.taskId(), passed.appId(), 0,
+                passed.startedAt(), null, passed.items(), null).isPassed());
+        QualityCheckItem optional = new QualityCheckItem("optional", false,
+                QualityCheckItemStatus.SKIPPED, 0, List.of());
+        assertFalse(new QualityReport(passed.taskId(), passed.appId(), 0,
+                passed.startedAt(), passed.finishedAt(), List.of(optional), null).isPassed());
+    }
+
+    /** 真实 Spring 属性绑定和初始化回调应校验预算，无需外部数据库或模型。 */
+    @Test
+    void shouldBindPropertiesAndValidateAtStartup() {
+        new org.springframework.boot.test.context.runner.ApplicationContextRunner()
+                .withUserConfiguration(QualityConfig.class)
+                .withPropertyValues("app.quality.max-repair-attempts=0", "app.quality.build-timeout=20s")
+                .run(context -> {
+                    org.junit.jupiter.api.Assertions.assertNull(context.getStartupFailure());
+                    var settings = context.getBean(QualityCheckProperties.class);
+                    org.junit.jupiter.api.Assertions.assertEquals(0, settings.getMaxRepairAttempts());
+                    org.junit.jupiter.api.Assertions.assertEquals(Duration.ofSeconds(20), settings.getBuildTimeout());
+                });
+        new org.springframework.boot.test.context.runner.ApplicationContextRunner()
+                .withUserConfiguration(QualityConfig.class)
+                .withPropertyValues("app.quality.max-repair-attempts=-1")
+                .run(context -> org.junit.jupiter.api.Assertions.assertNotNull(context.getStartupFailure()));
+    }
+
+    /** 仅注册质量配置，防止测试启动主应用和外部连接。 */
+    @org.springframework.context.annotation.Configuration(proxyBeanMethods = false)
+    @org.springframework.boot.context.properties.EnableConfigurationProperties(QualityCheckProperties.class)
+    static class QualityConfig { }
+
     /** 必选项为 SKIPPED 或 ERROR 时，报告不能判定通过。 */
     @Test
     void shouldRequireExplicitPassedStatusForRequiredItems() {

@@ -1,14 +1,10 @@
 package com.zzx.zzxaicode.quality.graph;
 
 import com.alibaba.cloud.ai.graph.CompiledGraph;
-import com.alibaba.cloud.ai.graph.KeyStrategy;
-import com.alibaba.cloud.ai.graph.KeyStrategyFactory;
 import com.alibaba.cloud.ai.graph.OverAllState;
 import com.alibaba.cloud.ai.graph.StateGraph;
 import com.alibaba.cloud.ai.graph.exception.GraphStateException;
-import com.alibaba.cloud.ai.graph.state.strategy.ReplaceStrategy;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
@@ -26,17 +22,17 @@ import static com.alibaba.cloud.ai.graph.action.AsyncNodeAction.node_async;
 public final class QualityCheckGraphPrototype {
 
     /** Graph 状态中的服务端任务标识，用于验证不同任务的状态不会互相覆盖。 */
-    static final String TASK_ID = "taskId";
+    static final String TASK_ID = QualityGraphStateContract.TASK_ID;
     /** Graph 状态中的检查是否通过标识。 */
-    static final String CHECK_PASSED = "checkPassed";
+    static final String CHECK_PASSED = QualityGraphStateContract.CHECK_PASSED;
     /** Graph 状态中的已启动修复次数。 */
-    static final String REPAIR_ATTEMPTS = "repairAttempts";
+    static final String REPAIR_ATTEMPTS = QualityGraphStateContract.REPAIR_ATTEMPTS;
     /** Graph 状态中的检查次数。 */
-    static final String CHECK_RUNS = "checkRuns";
+    static final String CHECK_RUNS = QualityGraphStateContract.CHECK_RUNS;
     /** Graph 状态中的当前阶段。 */
-    static final String STAGE = "stage";
+    static final String STAGE = QualityGraphStateContract.STAGE;
     /** Graph 状态中的业务终态。 */
-    static final String FINAL_STATUS = "finalStatus";
+    static final String FINAL_STATUS = QualityGraphStateContract.FINAL_STATUS;
 
     private QualityCheckGraphPrototype() {
     }
@@ -83,7 +79,7 @@ public final class QualityCheckGraphPrototype {
      * @throws GraphStateException 当节点或边定义不符合 Graph 约束时抛出
      */
     static CompiledGraph createGraph() throws GraphStateException {
-        return new StateGraph(createKeyStrategyFactory())
+        return new StateGraph(QualityGraphStateContract.keyStrategyFactory())
                 .addNode("generate", node_async(state -> Map.of(
                         STAGE, "GENERATED")))
                 .addNode("check", node_async(state -> {
@@ -112,24 +108,6 @@ public final class QualityCheckGraphPrototype {
                 .addEdge("repair", "check")
                 .addEdge("success", END)
                 .compile();
-    }
-
-    /**
-     * 为原型状态定义替换策略。
-     *
-     * <p>每个任务执行时使用自己的初始状态；节点只返回增量，后续正式状态契约可据此扩展检查报告和修复记录。</p>
-     *
-     * @return Graph 使用的状态键策略工厂
-     */
-    private static KeyStrategyFactory createKeyStrategyFactory() {
-        Map<String, KeyStrategy> strategies = new HashMap<>();
-        strategies.put(TASK_ID, new ReplaceStrategy());
-        strategies.put(CHECK_PASSED, new ReplaceStrategy());
-        strategies.put(REPAIR_ATTEMPTS, new ReplaceStrategy());
-        strategies.put(CHECK_RUNS, new ReplaceStrategy());
-        strategies.put(STAGE, new ReplaceStrategy());
-        strategies.put(FINAL_STATUS, new ReplaceStrategy());
-        return () -> new HashMap<>(strategies);
     }
 
     /**

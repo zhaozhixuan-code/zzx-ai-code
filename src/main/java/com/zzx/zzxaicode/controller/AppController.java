@@ -49,6 +49,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/app")
+@lombok.extern.slf4j.Slf4j
 public class AppController {
 
     @Resource
@@ -159,7 +160,15 @@ public class AppController {
                                 .event("done")
                                 .data("")
                                 .build()
-                ));
+                ))
+                // 异步流错误不能依赖 Servlet 调用线程的异常处理器；错误事件后绝不追加 done。
+                .onErrorResume(error->{
+                    log.warn("生成 SSE 失败，appId={}",appId,error);
+                    int code=error instanceof BusinessException business?business.getCode():ErrorCode.SYSTEM_ERROR.getCode();
+                    String reason=error instanceof BusinessException?error.getMessage():"生成执行异常，请查看质量报告";
+                    return Flux.just(ServerSentEvent.<String>builder().event("business-error")
+                            .data(JSONUtil.toJsonStr(Map.of("code",code,"message",reason))).build());
+                });
     }
 
 

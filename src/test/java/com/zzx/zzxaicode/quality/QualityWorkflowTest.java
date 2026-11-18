@@ -51,11 +51,27 @@ class QualityWorkflowTest {
         when(f.session.stream(any(),anyInt(),any())).thenReturn(Flux.<String>never().doOnCancel(()->modelCancelled.set(true)));
         var subscription=f.service.stream(1,2,"计数器").subscribe();
         org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(3)).until(()->!f.saved.isEmpty());
+        assertThrows(RuntimeException.class,()->f.service.stream(1,2,"竞争请求").blockLast(Duration.ofSeconds(3)));
+        verify(f.history,times(1)).addChatMessage(anyLong(),anyString(),anyString(),anyLong());
         subscription.dispose();
         org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(3)).until(()->modelCancelled.get()
                 && f.saved.getLast().status()==QualityTaskStatus.CANCELLED);
         verify(f.session).cancelAndAwaitFiles();
         assertEquals(0,f.checks.get());
+    }
+
+    /** 总期限停止模型；会话初始化失败也要保留失败记录并释放资格。 */
+    @Test void timeoutAndInitializationFailureDoNotLeakTaskLease() throws Exception {
+        Fixture timeout=new Fixture(2,0,false);timeout.settings.setOverallTimeout(Duration.ofMillis(200));
+        when(timeout.session.stream(any(),anyInt(),any())).thenReturn(Flux.never());
+        assertThrows(RuntimeException.class,()->timeout.service.stream(1,2,"计数器").blockLast(Duration.ofSeconds(5)));
+        assertEquals(QualityTaskStatus.FAILED,timeout.saved.getLast().status());
+        assertTrue(timeout.saved.getLast().message().contains("超时"));
+        timeout.locks.acquire(1).close();
+        Fixture init=new Fixture(2,0,false);
+        when(init.generator.openWorkspaceSession(anyLong(),anyString(),anyString(),any())).thenThrow(new IllegalStateException("memory unavailable"));
+        assertThrows(RuntimeException.class,()->init.service.stream(1,2,"计数器").blockLast(Duration.ofSeconds(5)));
+        assertEquals(QualityTaskStatus.FAILED,init.saved.getLast().status());init.locks.acquire(1).close();
     }
 
     /** 首屏代码错误进入同一个修复预算；下一轮必须重新构建并重新检查页面。 */
@@ -96,11 +112,14 @@ class QualityWorkflowTest {
         final List<QualityTaskSnapshot> saved=new CopyOnWriteArrayList<>();
         final QualityTaskStore store=mock(QualityTaskStore.class);
         final BrowserQualityChecker browser=mock(BrowserQualityChecker.class);
+        final SpringAiCodeGenerator generator=mock(SpringAiCodeGenerator.class);
+        final QualityAppLock locks=new QualityAppLock();
+        final QualityCheckProperties settings=new QualityCheckProperties();
+        final com.zzx.zzxaicode.service.ChatHistoryService history=mock(com.zzx.zzxaicode.service.ChatHistoryService.class);
         final QualityWorkflowService service;
         /** @param budget 修复预算 @param failures 先失败的检查数 @param environment 是否模拟环境错误 */
         Fixture(int budget,int failures,boolean environment) throws Exception {
             workspaces=new QualityWorkspaceService(root.resolve(UUID.randomUUID().toString()));
-            var generator=mock(SpringAiCodeGenerator.class);
             AtomicReference<Path> source=new AtomicReference<>();
             when(generator.openWorkspaceSession(anyLong(),anyString(),anyString(),any())).thenAnswer(call->{source.set(call.getArgument(3));return session;});
             when(session.stream(any(),anyInt(),any())).thenAnswer(call->Flux.defer(()->{
@@ -122,9 +141,9 @@ class QualityWorkflowTest {
                 return new QualityReport(ws.taskId(),ws.appId(),round,now,now,List.of(new QualityCheckItem("build",true,pass?QualityCheckItemStatus.PASSED:QualityCheckItemStatus.FAILED,1,problems)),pass?artifact:null);
             });
             doAnswer(c->{saved.add(c.getArgument(0));return null;}).when(store).save(any());
-            QualityCheckProperties settings=new QualityCheckProperties(); settings.setMaxRepairAttempts(budget);
+            settings.setMaxRepairAttempts(budget);
             when(browser.check(any(),any(),any(),any(),any())).thenAnswer(call->call.getArgument(1));
-            service=new QualityWorkflowService(generator,workspaces,new QualityAppLock(),checker,browser,new QualityRepairSupport(),settings,store,new ObjectMapper().findAndRegisterModules());
+            service=new QualityWorkflowService(generator,workspaces,locks,checker,browser,new QualityRepairSupport(),settings,store,new ObjectMapper().findAndRegisterModules(),history);
         }
     }
 }

@@ -115,7 +115,8 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         CodeGenTypeEnum genType = CodeGenTypeEnum.getEnumByValue(codeGenType);
         ThrowUtils.throwIf(genType == null, ErrorCode.PARAMS_ERROR, "代码生成类型不能为空");
         // 5. 把用户信息添加到对话历史
-        chatHistoryService.addChatMessage(appId, message, ChatHistoryMessageTypeEnum.USER.getValue(), loginUser.getId());
+        // Vue 的输入由质量任务在获得应用资格后保存，避免竞争失败的请求污染历史。
+        if(genType!=CodeGenTypeEnum.VUE_PROJECT) chatHistoryService.addChatMessage(appId, message, ChatHistoryMessageTypeEnum.USER.getValue(), loginUser.getId());
         // 6. 设置监控上下文（用户 ID，和应用 ID）
         MonitorContextHolder.setContext(
                 MonitorContext.builder()

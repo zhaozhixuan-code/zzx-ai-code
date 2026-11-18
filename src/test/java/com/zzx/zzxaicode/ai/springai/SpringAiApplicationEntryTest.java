@@ -88,7 +88,7 @@ class SpringAiApplicationEntryTest {
             assertEquals("done", events.getLast().event());
             assertEquals(1, events.stream().filter(event -> "done".equals(event.event())).count());
             assertTrue(events.getFirst().data().startsWith("{\"d\":"));
-            verify(fixture.history).addChatMessage(fixture.appId, "page", "user", 1L);
+            if(type!=CodeGenTypeEnum.VUE_PROJECT) verify(fixture.history).addChatMessage(fixture.appId, "page", "user", 1L);
             verify(fixture.history).addChatMessage(eq(fixture.appId), anyString(), eq("ai"), eq(1L));
             if (type == CodeGenTypeEnum.VUE_PROJECT) {
                 verify(fixture.quality).stream(fixture.appId,1L,"page");
@@ -111,9 +111,10 @@ class SpringAiApplicationEntryTest {
             when(fixture.generator.stream(fixture.appId, "page", type)).thenReturn(output);
             when(fixture.quality.stream(fixture.appId,1L,"page")).thenReturn(Flux.error(new BusinessException(ErrorCode.OPERATION_ERROR,"质量检查失败")));
             List<String> eventNames = new ArrayList<>();
-            assertThrows(RuntimeException.class, () -> fixture.controller.chatToGenCode(fixture.appId, "page", fixture.request())
-                    .doOnNext(event -> eventNames.add(event.event())).blockLast(Duration.ofSeconds(5)));
+            fixture.controller.chatToGenCode(fixture.appId, "page", fixture.request())
+                    .doOnNext(event -> eventNames.add(event.event())).blockLast(Duration.ofSeconds(5));
             assertFalse(eventNames.contains("done"));
+            assertEquals("business-error",eventNames.getLast());
             verify(fixture.history).addChatMessage(eq(fixture.appId), contains("失败"), eq("ai"), eq(1L));
         }
     }

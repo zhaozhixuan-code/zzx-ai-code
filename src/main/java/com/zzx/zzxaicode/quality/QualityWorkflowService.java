@@ -12,6 +12,8 @@ import com.zzx.zzxaicode.quality.config.QualityCheckProperties;
 import com.zzx.zzxaicode.quality.graph.*;
 import com.zzx.zzxaicode.quality.model.*;
 import com.zzx.zzxaicode.quality.workspace.*;
+import com.zzx.zzxaicode.service.ChatHistoryService;
+import com.zzx.zzxaicode.model.enums.ChatHistoryMessageTypeEnum;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.*;
 import reactor.core.scheduler.Schedulers;
@@ -25,6 +27,7 @@ import static com.zzx.zzxaicode.quality.graph.QualityGraphStateContract.*;
 
 /** Vue 生成的实际 Graph 闭环；每个订阅独占工作区、模型会话、预算与应用租约。 */
 @Service
+@lombok.extern.slf4j.Slf4j
 public class QualityWorkflowService {
     public static final String EVENT_PREFIX="\u001equality:";
     private final SpringAiCodeGenerator generator;
@@ -36,12 +39,13 @@ public class QualityWorkflowService {
     private final QualityCheckProperties settings;
     private final QualityTaskStore store;
     private final ObjectMapper json;
+    private final ChatHistoryService history;
 
     /** 注入模型、隔离、检查和报告能力；构造时不启动任何任务或外部进程。 */
     public QualityWorkflowService(SpringAiCodeGenerator generator,QualityWorkspaceService workspaces,QualityAppLock locks,
-            BuildQualityChecker checker,BrowserQualityChecker browser,QualityRepairSupport repair,QualityCheckProperties settings,QualityTaskStore store,ObjectMapper json) {
+            BuildQualityChecker checker,BrowserQualityChecker browser,QualityRepairSupport repair,QualityCheckProperties settings,QualityTaskStore store,ObjectMapper json,ChatHistoryService history) {
         this.generator=generator; this.workspaces=workspaces; this.locks=locks; this.checker=checker;
-        this.browser=browser; this.repair=repair; this.settings=settings; this.store=store; this.json=json;
+        this.browser=browser; this.repair=repair; this.settings=settings; this.store=store; this.json=json; this.history=history;
     }
 
     /**
@@ -69,13 +73,26 @@ public class QualityWorkflowService {
         if(!settings.isEnabled()) throw new BusinessException(ErrorCode.OPERATION_ERROR,"质量检查已停用，Vue 生成暂不可用");
         if(appId<=0 || userId<=0) throw new BusinessException(ErrorCode.PARAMS_ERROR,"任务归属无效");
         var lease=locks.acquire(appId);
+        String id=UUID.randomUUID().toString(); Instant started=Instant.now();boolean recorded=false;
         try {
-            var workspace=workspaces.prepare(appId,UUID.randomUUID().toString());
+            store.create(new QualityTaskSnapshot(id,appId,userId,QualityTaskStatus.RUNNING,QualityTaskStage.CREATED,
+                    0,settings.getMaxRepairAttempts(),started,null,"等待生成",null,List.of(),List.of()));
+            recorded=true;
+            // 用户消息必须在获得完整任务资格后保存，竞争失败的请求不能污染模型历史回填。
+            history.addChatMessage(appId,requirement,ChatHistoryMessageTypeEnum.USER.getValue(),userId);
+            var workspace=workspaces.prepare(appId,id);
             var session=generator.openWorkspaceSession(appId,String.valueOf(userId),requirement,workspace.source());
-            Run run=new Run(workspace,userId,requirement,session,lease);
-            store.create(run.snapshot());
-            return run;
-        } catch(IOException | RuntimeException error) { lease.close(); throw error; }
+            return new Run(workspace,userId,requirement,session,lease,started);
+        } catch(IOException | RuntimeException error) {
+            if(recorded) {
+                boolean cancelled=Thread.currentThread().isInterrupted() || error instanceof java.io.InterruptedIOException;
+                try { store.save(new QualityTaskSnapshot(id,appId,userId,cancelled?QualityTaskStatus.CANCELLED:QualityTaskStatus.FAILED,
+                        cancelled?QualityTaskStage.CANCELLED:QualityTaskStage.FAILED,
+                        0,settings.getMaxRepairAttempts(),started,Instant.now(),cancelled?"任务准备已取消":"任务初始化失败",null,List.of(),List.of())); }
+                catch(RuntimeException reportError) { error.addSuppressed(reportError); }
+            }
+            lease.close(); throw error;
+        }
     }
 
     /** 执行资源及用于报告回收的最新投影；图内计数与路由由节点返回的状态增量驱动。 */
@@ -85,8 +102,8 @@ public class QualityWorkflowService {
         final String requirement;
         final SpringAiCodeGenerator.WorkspaceSession session;
         final QualityAppLock.Lease lease;
-        final Instant started=Instant.now();
-        final Instant deadline=started.plus(settings.getOverallTimeout());
+        final Instant started;
+        final Instant deadline;
         final AtomicBoolean cancelled=new AtomicBoolean();
         final AtomicBoolean safeToRelease=new AtomicBoolean(true);
         final Object gate=new Object();
@@ -99,10 +116,11 @@ public class QualityWorkflowService {
         String message="等待生成";
         String artifact;
 
-        /** @param workspace 独立目录 @param userId 用户 @param requirement 需求 @param session 私有模型会话 @param lease 应用资格 */
+        /** @param workspace 独立目录 @param userId 用户 @param requirement 需求 @param session 私有模型会话 @param lease 应用资格 @param started 任务开始时间 */
         Run(QualityWorkspaceService.Workspace workspace,long userId,String requirement,
-                SpringAiCodeGenerator.WorkspaceSession session,QualityAppLock.Lease lease) {
+                SpringAiCodeGenerator.WorkspaceSession session,QualityAppLock.Lease lease,Instant started) {
             this.workspace=workspace; this.userId=userId; this.requirement=requirement; this.session=session; this.lease=lease;
+            this.started=started;this.deadline=started.plus(settings.getOverallTimeout());
         }
 
         /** @param events 实时事件出口 @return 实际 Graph 执行，失败节点保留 error 语义 */
@@ -204,6 +222,7 @@ public class QualityWorkflowService {
 
         /** @param error 真实异常；只暴露业务原因，底层异常不带出主机路径或凭据 */
         void fail(Throwable error) {
+            log.warn("质量任务失败，taskId={}, appId={}",workspace.taskId(),workspace.appId(),error);
             cancelled.set(true); session.cancelAndAwaitFiles();
             synchronized(gate) {
                 if(status!=QualityTaskStatus.RUNNING) return;

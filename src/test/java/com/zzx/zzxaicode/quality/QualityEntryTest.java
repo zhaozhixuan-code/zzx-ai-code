@@ -33,8 +33,9 @@ class QualityEntryTest {
         assertEquals("quality",events.getFirst().event());assertEquals("done",events.getLast().event());
         when(apps.chatToGenCode(1L,"page",user)).thenReturn(Flux.concat(Flux.just(quality),Flux.error(new IllegalStateException("failed"))));
         java.util.List<String> names=new java.util.ArrayList<>();
-        assertThrows(IllegalStateException.class,()->controller.chatToGenCode(1L,"page",request).doOnNext(e->names.add(e.event())).blockLast());
+        controller.chatToGenCode(1L,"page",request).doOnNext(e->names.add(e.event())).blockLast();
         assertFalse(names.contains("done"));
+        assertEquals("business-error",names.getLast());
     }
     /** 发布指针才使候选可见；内部根路径、路径穿越及源码不向公开静态接口开放。 */
     @Test void servesOnlyPublishedVueDist() throws Exception {

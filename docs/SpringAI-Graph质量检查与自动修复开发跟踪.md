@@ -156,7 +156,7 @@ Service、数据库连接、浏览器、进程、SSE 连接和事件发送器属
 | S01 | 锁定 Graph 依赖并验证最小状态路由 | S00 | 已完成 | Java 21 + Maven 项目编译与 Graph 原型运行通过，任务隔离断言通过；不配置检查点，以 taskId 区分任务，不承诺重启续跑 |
 | S02 | 定义任务状态、报告及配置契约 | S01 | 已完成 | 任务/报告数据契约、Graph 合并策略、Spring 配置绑定与非法预算拒绝通过；业务轮次执行在 S08 验证 |
 | S03 | 验证 Graph 与现有模型、工具事件的流式桥接 | S01、S02 | 已完成 | GraphEventBridgeTest 2 个测试通过：节点结束前收到事件、一次订阅、取消模型及异常传播；无需求时 ERROR，不无界缓存 |
-| S04 | 实现任务工作区、全流程互斥和产物确认边界 | S02、S03 | 未开始 | — |
+| S04 | 实现任务工作区、全流程互斥和产物确认边界 | S02、S03 | 已完成 | QualityWorkspaceTest 3 个测试通过：失败隔离、指针发布/补偿、工具路径限制和租约所有权；主入口及部署锁在 S10 连接 |
 | S05 | 将既有 Vue 生成能力接入生成节点 | S03、S04 | 未开始 | — |
 | S06 | 实现真实构建检查及结构化诊断 | S02、S04 | 未开始 | — |
 | S07 | 实现受限的 Spring AI 定向修复 | S05、S06 | 未开始 | — |
@@ -351,6 +351,8 @@ Maven 解析、编译和测试尚无本次执行授权；需要时记录具体�
 - [ ] 配置、日志、注释、已知限制及进度文档与交付一致。
 
 ## 9. 决策与待验证事项
+
+S04 实测：`mvn.cmd -Dtest=QualityWorkspaceTest test`，3 个测试通过。任务位于输出目录 `.quality/apps/{appId}/tasks/{taskId}/source`；构建在各自任务目录产出 dist，不继承旧 dist。成功以 `published` 文件原子替换切换读取引用；记录旧指针用于报告终态落库失败时补偿，不声称文件系统和数据库原子事务。失败目录保留，不添加清理删除。公开预览仍用 `/static/vue_project_{appId}/dist/index.html`，S10 由服务端解析到当前确认目录，禁止公开内部任务目录。所有权租约覆盖全流程，S10 同时接入部署/下载。
 
 S03 实测：`mvn.cmd -Dtest=GraphEventBridgeTest test` 通过。Graph 节点返回可取消 future，既有模型 JSON 字符串事件经单次订阅的执行上下文实时输出；图状态中不存 Flux、事件出口或订阅。普通文本链路在 S10 将质量事件分流为命名 SSE：`quality-started`、`quality-check-result`、`repair-started`、`repair-completed`、`quality-finished`。异常终态继续使用 error 信号，取消不启动后续节点。依据 D03 及 1.1.2.0 AsyncNodeAction 源码核对，未使用官方示例的全量 collectList 阻塞方式。
 

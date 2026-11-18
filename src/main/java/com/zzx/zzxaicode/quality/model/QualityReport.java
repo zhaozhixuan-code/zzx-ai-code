@@ -46,6 +46,7 @@ public record QualityReport(
     }
 
     /** 检查必须结束且包含必选项，所有必选项明确 PASSED 才能判定本轮通过。 */
+    @com.fasterxml.jackson.annotation.JsonIgnore
     public boolean isPassed() {
         return finishedAt != null && items.stream().anyMatch(QualityCheckItem::required)
                 && items.stream().allMatch(QualityCheckItem::isPassingRequirement);

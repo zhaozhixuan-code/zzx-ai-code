@@ -32,6 +32,7 @@ public record QualityCheckItem(
     }
 
     /** 必选项只有明确 PASSED 才能参与任务成功判定。 */
+    @com.fasterxml.jackson.annotation.JsonIgnore
     public boolean isPassingRequirement() {
         return !required || status == QualityCheckItemStatus.PASSED;
     }

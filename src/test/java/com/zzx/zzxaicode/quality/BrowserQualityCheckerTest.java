@@ -43,12 +43,15 @@ class BrowserQualityCheckerTest {
         var props=new ScreenshotProperties();props.setAutoDownload(false);
         var checker=new BrowserQualityChecker(new ScreenshotDriverFactory(props));
         Files.createDirectories(root.resolve("quality-dist-0"));
-        for(String page:List.of("<h1>正常页面</h1>","<h1>错误页面</h1><script>throw new Error('early-fixture-error')</script>",
-                "<h1>资源错误</h1><script src='missing.js'></script>","<div id='app'></div>")) {
+        for(var fixture:List.of(Map.entry("<h1>正常页面</h1>",true),Map.entry("<h1>错误页面</h1><script>throw new Error('early-fixture-error')</script>",false),
+                Map.entry("<h1>资源错误</h1><script src='missing.js'></script>",false),Map.entry("<div id='app'></div>",false),
+                Map.entry("<svg width='20' height='20'><circle cx='10' cy='10' r='8'/></svg>",true),
+                Map.entry("<h1>图片可选</h1><img src='https://images.invalid/fixture.png'>",true))) {
+            String page=fixture.getKey();
             Files.writeString(root.resolve("quality-dist-0/index.html"),page);
             AtomicBoolean safe=new AtomicBoolean(true);
             var report=checker.check(workspace(),build(),Duration.ofSeconds(20),new AtomicBoolean(),safe);
-            assertEquals(page.equals("<h1>正常页面</h1>"),report.isPassed(),report.toString());
+            assertEquals(fixture.getValue(),report.isPassed(),report.toString());
             assertTrue(safe.get(),"浏览器应已回收");
             assertTrue(Files.isRegularFile(root.resolve("quality-browser-0.png")));
         }

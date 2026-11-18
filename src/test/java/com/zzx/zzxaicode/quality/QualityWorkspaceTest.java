@@ -49,6 +49,18 @@ class QualityWorkspaceTest {
                 Map.of("relativeFilePath", "src/main.ts", "content", "console.log('ok')"), true).contains("成功"));
     }
 
+    /** 修复在 npm 安装后仍只列出源码，单个过大文件不能撑满模型工具上下文。 */
+    @Test void boundsToolContextAfterDependencyInstall() throws Exception {
+        var files=new ProjectFileOperations(root);
+        Files.createDirectories(root.resolve("node_modules"));Files.createDirectories(root.resolve("src"));
+        Files.writeString(root.resolve("node_modules/ignored.js"),"dependency");
+        Files.writeString(root.resolve("src/App.vue"),"source");Files.writeString(root.resolve("quality-build-0.log"),"diagnostics");
+        String listing=files.executeInWorkspace(root,"readDir",Map.of("relativeDirPath",""),true);
+        assertTrue(listing.contains("App.vue"));assertFalse(listing.contains("ignored.js"));assertFalse(listing.contains("quality-build"));
+        Files.writeString(root.resolve("src/large.js"),"a".repeat(256*1024+1));
+        assertTrue(files.executeInWorkspace(root,"readFile",Map.of("relativeFilePath","src/large.js"),true).startsWith("错误"));
+    }
+
     /** 失败竞争及重复关闭旧租约都不能释放后续任务持有的资格。 */
     @Test
     void onlyOwnerCanReleaseLease() {

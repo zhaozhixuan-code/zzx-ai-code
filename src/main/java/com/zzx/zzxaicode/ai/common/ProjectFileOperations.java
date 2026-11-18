@@ -7,11 +7,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Stream;
 
 /** 框架无关文件能力，所有路径均限定为服务端 appId 对应的 Vue 项目。 */
 @Component
@@ -73,7 +71,7 @@ public class ProjectFileOperations {
                 throw new IllegalArgumentException("修复只允许修改 src、public 和 index.html，不能删除或修改构建配置");
             }
             return switch (name) {
-                case "readFile" -> Files.readString(path);
+                case "readFile" -> readFile(path);
                 case "readDir" -> readDirectory(path);
                 case "writeFile" -> {
                     String content = required(arguments, "content");
@@ -159,14 +157,29 @@ public class ProjectFileOperations {
         if (!Files.isDirectory(directory)) {
             throw new IllegalArgumentException("目录不存在或不是目录");
         }
-        try (Stream<Path> stream = Files.walk(directory)) {
-            List<String> files = stream.filter(Files::isRegularFile)
-                    .filter(path -> !Files.isSymbolicLink(path))
-                    .filter(path -> Stream.of(directory.relativize(path).toString().split("[/\\\\]"))
-                            .noneMatch(IGNORED::contains))
-                    .map(path -> directory.relativize(path).toString()).sorted().toList();
-            return "项目目录结构:\n" + String.join("\n", files);
-        }
+        StringBuilder result=new StringBuilder("项目目录结构:\n");
+        Files.walkFileTree(directory,new java.nio.file.SimpleFileVisitor<>() {
+            /** 不进入依赖与本轮产物，避免修复轮次遍历 npm 安装后的整个依赖树。 */
+            @Override public java.nio.file.FileVisitResult preVisitDirectory(Path dir,java.nio.file.attribute.BasicFileAttributes attrs) {
+                String name=dir.getFileName().toString();
+                return !dir.equals(directory) && (IGNORED.contains(name) || name.startsWith("quality-") || name.startsWith(".env"))
+                        ?java.nio.file.FileVisitResult.SKIP_SUBTREE:java.nio.file.FileVisitResult.CONTINUE;
+            }
+            /** 清单输出限制 65536 字符，超限明确截断，模型可继续读取具体子目录。 */
+            @Override public java.nio.file.FileVisitResult visitFile(Path file,java.nio.file.attribute.BasicFileAttributes attrs) {
+                String name=file.getFileName().toString();
+                if(attrs.isRegularFile() && !IGNORED.contains(name) && !name.startsWith("quality-") && !name.startsWith(".env")) result.append(directory.relativize(file)).append('\n');
+                if(result.length()>65536) { result.setLength(65536);result.append("\n清单已截断，请指定子目录读取");return java.nio.file.FileVisitResult.TERMINATE; }
+                return java.nio.file.FileVisitResult.CONTINUE;
+            }
+        });
+        return result.toString();
+    }
+
+    /** @param file 已完成路径校验的文件 @return 不超过 256KiB 的原文，超大文件明确拒绝而不返回半段源码 */
+    private String readFile(Path file) throws IOException {
+        if(Files.size(file)>256*1024) throw new IllegalArgumentException("文件超过 256KiB，请读取具体源码文件");
+        return Files.readString(file);
     }
 
     /**

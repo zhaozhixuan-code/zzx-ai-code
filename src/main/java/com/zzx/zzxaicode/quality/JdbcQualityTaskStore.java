@@ -4,8 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zzx.zzxaicode.quality.model.*;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.context.event.ApplicationReadyEvent;
-import org.springframework.context.event.EventListener;
+import jakarta.annotation.PostConstruct;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -66,7 +65,7 @@ public class JdbcQualityTaskStore implements QualityTaskStore {
     }
 
     /** 仅标记本实例上次未结束任务，不重放模型、文件工具或构建；部署要求同一 instance-id 单进程运行。 */
-    @EventListener(ApplicationReadyEvent.class)
+    @PostConstruct
     public void interruptUnfinished() {
         if(!enabled) return;
         var pending=jdbc.queryForList("SELECT payload FROM quality_task WHERE instance_id=? AND status='RUNNING' AND isDelete=0",String.class,instanceId);

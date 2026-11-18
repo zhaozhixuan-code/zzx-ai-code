@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zzx.zzxaicode.ai.springai.SpringAiCodeGenerator;
 import com.zzx.zzxaicode.exception.*;
 import com.zzx.zzxaicode.quality.check.BuildQualityChecker;
+import com.zzx.zzxaicode.quality.check.BrowserQualityChecker;
 import com.zzx.zzxaicode.quality.config.QualityCheckProperties;
 import com.zzx.zzxaicode.quality.graph.*;
 import com.zzx.zzxaicode.quality.model.*;
@@ -30,6 +31,7 @@ public class QualityWorkflowService {
     private final QualityWorkspaceService workspaces;
     private final QualityAppLock locks;
     private final BuildQualityChecker checker;
+    private final BrowserQualityChecker browser;
     private final QualityRepairSupport repair;
     private final QualityCheckProperties settings;
     private final QualityTaskStore store;
@@ -37,9 +39,9 @@ public class QualityWorkflowService {
 
     /** 注入模型、隔离、检查和报告能力；构造时不启动任何任务或外部进程。 */
     public QualityWorkflowService(SpringAiCodeGenerator generator,QualityWorkspaceService workspaces,QualityAppLock locks,
-            BuildQualityChecker checker,QualityRepairSupport repair,QualityCheckProperties settings,QualityTaskStore store,ObjectMapper json) {
+            BuildQualityChecker checker,BrowserQualityChecker browser,QualityRepairSupport repair,QualityCheckProperties settings,QualityTaskStore store,ObjectMapper json) {
         this.generator=generator; this.workspaces=workspaces; this.locks=locks; this.checker=checker;
-        this.repair=repair; this.settings=settings; this.store=store; this.json=json;
+        this.browser=browser; this.repair=repair; this.settings=settings; this.store=store; this.json=json;
     }
 
     /**
@@ -53,7 +55,8 @@ public class QualityWorkflowService {
                         .takeUntilOther(Mono.delay(settings.getOverallTimeout()).flatMap(n->Mono.error(new java.util.concurrent.TimeoutException("任务达到整体期限"))))
                         .onErrorResume(error->Mono.fromRunnable(()->run.fail(error)).subscribeOn(Schedulers.boundedElastic())
                                 .thenMany(Flux.concat(Flux.just(run.event()),Flux.error(new BusinessException(ErrorCode.OPERATION_ERROR,run.message))))),
-                run->cleanup(run,false), (run,error)->cleanup(run,false),run->cleanup(run,true));
+                run->cleanup(run,false), (run,error)->cleanup(run,false),run->cleanup(run,true))
+                .doOnDiscard(Run.class,run->cleanup(run,true).subscribe());
     }
 
     /** @param run 单次资源 @param cancelled 是否客户端取消 @return 完成资源回收后才结束的信号 */
@@ -116,7 +119,9 @@ public class QualityWorkflowService {
                                 attempts=state.value(REPAIR_ATTEMPTS,0);
                                 progress(QualityTaskStage.CHECKING,"正在检查第 "+(attempts+1)+" 轮",events);
                                 QualityReport report=checker.check(workspace,attempts,cancelled,safeToRelease);
+                                report=browser.check(workspace,report,remaining(settings.getBrowserTimeout()),cancelled,safeToRelease);
                                 ensureRunning(); reports.add(report); store.save(snapshot()); events.emit(event());
+                                if(!safeToRelease.get()) throw new BusinessException(ErrorCode.OPERATION_ERROR,"检查执行资源未能确认回收，任务不能发布，请处理服务器环境");
                                 return Map.<String,Object>of(QUALITY_REPORT,report,CHECK_ROUND,attempts);
                             }
                         }).subscribeOn(Schedulers.boundedElastic())))

@@ -2,6 +2,7 @@ package com.zzx.zzxaicode.quality;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zzx.zzxaicode.ai.springai.SpringAiCodeGenerator;
 import com.zzx.zzxaicode.quality.check.BuildQualityChecker;
+import com.zzx.zzxaicode.quality.check.BrowserQualityChecker;
 import com.zzx.zzxaicode.quality.config.QualityCheckProperties;
 import com.zzx.zzxaicode.quality.model.*;
 import com.zzx.zzxaicode.quality.workspace.*;
@@ -57,12 +58,44 @@ class QualityWorkflowTest {
         assertEquals(0,f.checks.get());
     }
 
+    /** 首屏代码错误进入同一个修复预算；下一轮必须重新构建并重新检查页面。 */
+    @Test void browserFailureRoutesBackThroughBuildAndRepair() throws Exception {
+        Fixture f=new Fixture(2,0,false); AtomicInteger runs=new AtomicInteger();
+        when(f.browser.check(any(),any(),any(),any(),any())).thenAnswer(call->{
+            QualityReport build=call.getArgument(1);
+            if(runs.getAndIncrement()>0) return build;
+            var items=new ArrayList<>(build.items());
+            items.add(new QualityCheckItem("browser",true,QualityCheckItemStatus.FAILED,1,List.of(new QualityProblem(
+                    QualityProblemCategory.RUNTIME,true,null,null,null,"early-error","browser.log"))));
+            return new QualityReport(build.taskId(),build.appId(),build.checkRound(),build.startedAt(),Instant.now(),items,build.artifactId());
+        });
+        f.service.stream(1,2,"计数器").blockLast(Duration.ofSeconds(10));
+        assertEquals(2,f.checks.get());assertEquals(1,f.repairs.get());assertEquals(2,runs.get());
+    }
+
+    /** 模型没有有效写入时提前停止；终态存储失败时补偿预览和模型上下文。 */
+    @Test void noProgressStopsAndConfirmationFailureRestoresPreview() throws Exception {
+        Fixture unchanged=new Fixture(2,99,false);
+        when(unchanged.session.stream(notNull(),anyInt(),any())).thenReturn(Flux.just("无修改"));
+        assertThrows(RuntimeException.class,()->unchanged.service.stream(1,2,"计数器").blockLast(Duration.ofSeconds(10)));
+        assertEquals(1,unchanged.checks.get());
+        assertFalse(unchanged.saved.getLast().repairs().getFirst().changed());
+        Fixture failedStore=new Fixture(2,0,false);
+        Path old=failedStore.workspaces.publishedSource(1).resolve("dist");Files.createDirectories(old);Files.writeString(old.resolve("index.html"),"old");
+        doAnswer(call->{ QualityTaskSnapshot t=call.getArgument(0);if(t.status()==QualityTaskStatus.SUCCEEDED) throw new IllegalStateException("store unavailable");failedStore.saved.add(t);return null; }).when(failedStore.store).save(any());
+        assertThrows(RuntimeException.class,()->failedStore.service.stream(1,2,"计数器").blockLast(Duration.ofSeconds(10)));
+        assertEquals("old",Files.readString(failedStore.workspaces.publishedSource(1).resolve("dist/index.html")));
+        verify(failedStore.session).restorePreviousContext();
+    }
+
     /** 测试依赖及结果集合，每个实例有独立应用根。 */
     class Fixture {
         final QualityWorkspaceService workspaces;
         final SpringAiCodeGenerator.WorkspaceSession session=mock(SpringAiCodeGenerator.WorkspaceSession.class);
         final AtomicInteger checks=new AtomicInteger(),repairs=new AtomicInteger();
         final List<QualityTaskSnapshot> saved=new CopyOnWriteArrayList<>();
+        final QualityTaskStore store=mock(QualityTaskStore.class);
+        final BrowserQualityChecker browser=mock(BrowserQualityChecker.class);
         final QualityWorkflowService service;
         /** @param budget 修复预算 @param failures 先失败的检查数 @param environment 是否模拟环境错误 */
         Fixture(int budget,int failures,boolean environment) throws Exception {
@@ -88,10 +121,10 @@ class QualityWorkflowTest {
                 Instant now=Instant.now();
                 return new QualityReport(ws.taskId(),ws.appId(),round,now,now,List.of(new QualityCheckItem("build",true,pass?QualityCheckItemStatus.PASSED:QualityCheckItemStatus.FAILED,1,problems)),pass?artifact:null);
             });
-            var store=mock(QualityTaskStore.class);
             doAnswer(c->{saved.add(c.getArgument(0));return null;}).when(store).save(any());
             QualityCheckProperties settings=new QualityCheckProperties(); settings.setMaxRepairAttempts(budget);
-            service=new QualityWorkflowService(generator,workspaces,new QualityAppLock(),checker,new QualityRepairSupport(),settings,store,new ObjectMapper().findAndRegisterModules());
+            when(browser.check(any(),any(),any(),any(),any())).thenAnswer(call->call.getArgument(1));
+            service=new QualityWorkflowService(generator,workspaces,new QualityAppLock(),checker,browser,new QualityRepairSupport(),settings,store,new ObjectMapper().findAndRegisterModules());
         }
     }
 }

@@ -165,7 +165,7 @@ Service、数据库连接、浏览器、进程、SSE 连接和事件发送器属
 | S10 | 接入主业务与 SSE 终态，协调预览及部署 | S03、S08、S09 | 已完成 | 主门面 Vue 分派 Graph；独立 quality SSE、错误不追加 done、成功指针预览和部署下载锁；14 个入口/持久化回归及 7 个 SSE/交付定向验证通过 |
 | S11 | 完成聊天页进度与报告展示 | S10 | 待验证 | 已接入进度、轮次、受保护证据、取消、刷新恢复、旧预览保留及迟到事件保护；Vite 生产打包通过；全量类型检查受原有 UserManagePage.vue:139 的 string/number 错误阻塞，未修改该页面 |
 | S12 | 完成 M1 定向验证与演示 | S04～S11 | 待验证 | 已提供显式启用的真实容器 fixture；本机 Docker/WSL 启动失败，环境分类实测为 ENVIRONMENT，构建用例跳过 1，不能标记 M1 验收通过 |
-| S13 | 增加浏览器运行检查并纳入修复闭环 | M1 已完成 | 未开始 | — |
+| S13 | 增加浏览器运行检查并纳入修复闭环 | M1 代码已接入 | 已完成 | 实际 Chrome 157 + 匹配驱动：正常首屏、早期异常、缺失脚本、空白识别通过；loopback 代理拒绝其他目标；Graph 运行错误路由、报告/预览补偿等 9 项定向验证通过 |
 | S14 | 完成 M2、旧模式回归与最终交付 | S13 | 未开始 | — |
 
 ## 6. 分步骤需求、目标与验收
@@ -374,3 +374,9 @@ S03 实测：`mvn.cmd -Dtest=GraphEventBridgeTest test` 通过。Graph 节点返
 ### S12 运行证据（2026-11-18）
 
 执行 Maven QualityLiveBuildTest（quality.live-docker=true）：1 个容器用例因 Docker 守护进程不可用跳过，非构建通过。本机 Desktop 日志记录 WSL 枚举退出码 0xc000012d，后续启动出现 dockerInference 监听文件不可访问；未执行重置、删除 Docker 数据或 WSL 操作。受限环境缺失时服务返回不可自动源码修复的环境诊断，没有退回宿主机执行生成工程。
+
+### S13 浏览器验证与边界
+
+Selenium 4.33.0 使用 ChromeDriver 的通用 executeCdpCommand，导航前安装 Page 异常采集并关闭缓存；不使用不匹配的版本化 DevTools 事件。真实 Chrome 157 与本机缓存匹配驱动验证通过，PATH 中旧驱动 146 被实际 SessionNotCreatedException 拒绝。临时 HttpServer 仅 loopback、固定候选根；Chrome 手动代理加 <-loopback> 强制所有地址走只读候选代理，外部和其他私网目标不转发；质量浏览器强制保留自身沙盒。首屏等待 1.5 秒，关键本地 JS/CSS 缺失及可见空白失败；外部网络被阻断，不证明外部 API、后续路由或全部用户交互正确。
+
+官方依据：[Selenium Chrome](https://www.selenium.dev/documentation/webdriver/browsers/chrome/)、[Chromium 代理规则](https://chromium.googlesource.com/chromium/src/+/HEAD/net/docs/proxy.md)。候选退出失败时保留应用资格，不宣告成功。

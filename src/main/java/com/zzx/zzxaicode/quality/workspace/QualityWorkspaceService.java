@@ -41,6 +41,7 @@ public class QualityWorkspaceService {
                 /** 拷贝源目录结构；不进入依赖、产物或链接目录。 */
                 @Override
                 public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                    if(Thread.currentThread().isInterrupted()) throw new java.io.InterruptedIOException("任务准备已取消");
                     if (!dir.equals(previous) && (EXCLUDED.contains(dir.getFileName().toString())
                             || dir.getFileName().toString().startsWith("quality-"))) {
                         return FileVisitResult.SKIP_SUBTREE;
@@ -53,6 +54,7 @@ public class QualityWorkspaceService {
                 /** 拷贝普通源码文件，异常明确中止准备，不发布部分拷贝。 */
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    if(Thread.currentThread().isInterrupted()) throw new java.io.InterruptedIOException("任务准备已取消");
                     requireNoLink(file);
                     if (attrs.isRegularFile() && !EXCLUDED.contains(file.getFileName().toString())
                             && !file.getFileName().toString().startsWith(".env")

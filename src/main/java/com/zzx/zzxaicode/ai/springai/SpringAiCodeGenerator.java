@@ -28,6 +28,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.nio.file.Path;
+import java.time.Duration;
 
 /** Spring AI 主业务适配，手动工具循环保留请求/执行事件及明确的错误传播。 */
 @Service
@@ -112,6 +115,83 @@ public class SpringAiCodeGenerator implements AiCodeGenerator {
     }
 
     /**
+     * 打开任务私有会话；调用者必须已获得完整任务租约，不能与普通 Vue 生成并发。
+     * @param appId 已鉴权的应用
+     * @param userId 已鉴权的用户监控标签
+     * @param requirement 原始用户需求
+     * @param workspace 服务端任务源码根目录
+     * @return 不会自动保存的会话；成功发布时才调用 save
+     */
+    public WorkspaceSession openWorkspaceSession(long appId, String userId, String requirement, Path workspace) {
+        PromptSafetyValidator.validate(requirement);
+        return new WorkspaceSession(appId, userId, conversations.load(appId, requirement), workspace);
+    }
+
+    /** 任务独占模型上下文及文件工具执行门，执行资源不进入 Graph 状态。 */
+    public final class WorkspaceSession {
+        private final long appId;
+        private final String userId;
+        private final List<Message> history;
+        private final Path workspace;
+        private final Object fileGate = new Object();
+        private final AtomicBoolean cancelled = new AtomicBoolean();
+
+        /** @param appId 应用 @param userId 用户 @param history 私有消息列表 @param workspace 任务目录 */
+        private WorkspaceSession(long appId, String userId, List<Message> history, Path workspace) {
+            this.appId = appId;
+            this.userId = userId;
+            this.history = history;
+            this.workspace = workspace;
+        }
+
+        /**
+         * 执行一次生成或定向修复，复用同一个手动工具循环及协议聚合器。
+         * @param repairPrompt null 表示首次生成，非空表示追加的服务端修复诊断
+         * @param maxRounds 本次模型请求预算，包含最终续答
+         * @param timeout 本阶段整体超时，不是相邻片段超时
+         * @return 既有正文与工具事件；失败/取消不保存上下文
+         */
+        public Flux<String> stream(String repairPrompt, int maxRounds, Duration timeout) {
+            return Flux.defer(() -> {
+                if (cancelled.get()) return Flux.error(new java.util.concurrent.CancellationException());
+                if (repairPrompt != null) history.add(new UserMessage(repairPrompt));
+                Map<String, ToolCallback> guarded = new LinkedHashMap<>();
+                callbacks.forWorkspace(workspace, repairPrompt != null).forEach((name, delegate) -> guarded.put(name,
+                        new ToolCallback() {
+                            /** @return 已绑定任务的工具参数声明 */
+                            @Override
+                            public org.springframework.ai.tool.definition.ToolDefinition getToolDefinition() {
+                                return delegate.getToolDefinition();
+                            }
+
+                            /** @param input 模型实参 @return 实际文件结果；取消后禁止继续写入 */
+                            @Override
+                            public String call(String input) {
+                                synchronized (fileGate) {
+                                    if (cancelled.get()) throw new java.util.concurrent.CancellationException();
+                                    return delegate.call(input);
+                                }
+                            }
+                        }));
+                return round(appId, userId, history, guarded, 0, maxRounds)
+                        .takeUntilOther(Mono.delay(timeout).flatMap(ignored ->
+                                Mono.error(new java.util.concurrent.TimeoutException("模型阶段超时"))));
+            }).subscribeOn(Schedulers.boundedElastic());
+        }
+
+        /** 保存最终通过的上下文；调用者负责与报告和产物确认顺序协调。 */
+        public void save() {
+            conversations.save(appId, history);
+        }
+
+        /** 设置取消标记并等待实际文件操作返回，然后才允许任务租约释放。 */
+        public void cancelAndAwaitFiles() {
+            cancelled.set(true);
+            synchronized (fileGate) { /* 等待本任务的同步文件操作停止。 */ }
+        }
+    }
+
+    /**
      * 共用一次模型请求的流式处理，完整响应由框架聚合，通过结束校验后才追加 assistant。
      * @param model 普通生成或 Vue 工具模型
      * @param prompt 已包含系统提示词、历史和本轮工具声明的请求
@@ -152,7 +232,18 @@ public class SpringAiCodeGenerator implements AiCodeGenerator {
      */
     private Flux<String> round(long appId, String userId, List<Message> history,
                                 Map<String, ToolCallback> tools, int round) {
-        if (round >= properties.getMaxToolRounds()) {
+        return round(appId, userId, history, tools, round, properties.getMaxToolRounds());
+    }
+
+    /**
+     * 按任务预算执行一轮模型请求，业务修复预算不参与此计数。
+     * @param appId 应用 @param userId 用户 @param history 私有消息
+     * @param tools 本轮工具 @param round 已发起请求数 @param maxRounds 本阶段请求上限
+     * @return 模型正文与工具事件
+     */
+    private Flux<String> round(long appId, String userId, List<Message> history,
+                                Map<String, ToolCallback> tools, int round, int maxRounds) {
+        if (round >= maxRounds) {
             return Flux.error(new BusinessException(ErrorCode.OPERATION_ERROR, "工具调用次数超过上限"));
         }
         return response(vueModel, prompt(CodeGenTypeEnum.VUE_PROJECT, history,
@@ -180,7 +271,7 @@ public class SpringAiCodeGenerator implements AiCodeGenerator {
                                 // exit 之后仍请求一次模型续答，但不再向它提供工具声明。
                                 Map<String, ToolCallback> nextTools = calls.stream().anyMatch(call -> "exit".equals(call.name()))
                                         ? Map.of() : tools;
-                                return round(appId, userId, history, nextTools, round + 1);
+                                return round(appId, userId, history, nextTools, round + 1, maxRounds);
                             }));
                 }));
     }

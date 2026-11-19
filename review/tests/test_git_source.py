@@ -52,13 +52,17 @@ class GitSourceTests(unittest.TestCase):
         self.assertEqual(prepare_input(self.repo, renamed, second), self.root_sha)
         _, metadata, diff = load_input(second)
         self.assertEqual(metadata["renames"], [{"from": "src/旧 源码.py", "to": "src/新 源码.py"}])
+        self.assertEqual(metadata["excluded_changed_files"], ["src/application.yml", "src/local.py"])
         self.assertNotIn("fake-credential", diff)
         self.assertNotIn("private test data", diff)
         self.command("rm", "src/新 源码.py")
         deleted = self.commit("delete")
         third = self.root / "third"
         self.assertEqual(prepare_input(self.repo, deleted, third), renamed)
-        self.assertIn("+++ /dev/null", load_input(third)[2])
+        _, metadata, diff = load_input(third)
+        self.assertIn("+++ /dev/null", diff)
+        self.assertIn("src/application.yml", metadata["excluded"])
+        self.assertEqual(metadata["excluded_changed_files"], [])
         self.assertTrue((second / "current" / "src" / "新 源码.py").is_file())
 
     def test_merge_and_force_push_ranges(self):

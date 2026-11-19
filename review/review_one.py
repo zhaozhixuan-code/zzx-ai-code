@@ -13,8 +13,14 @@ from report import ROOT, assess_attempt, build_report, save_json, write_report
 
 
 def run_one(input_directory, output_root, *, repository, branch=None, run_url=None, timeout=480,
-            model=DEFAULT_MODEL, pi_command=None, model_profile=None):
-    """审查已过滤输入；timeout 为包含预检、两次模型输出和校验的总秒数。"""
+            model=DEFAULT_MODEL, pi_command=None, model_profile=None, save_report=True):
+    """审查过滤后的 input_directory，使用 output_root 保存 Pi 的工作文件。
+
+    repository、branch 和 run_url 标识本次提交的运行上下文。timeout 是预检、模型和校验共用的秒数。
+    model、pi_command 和 model_profile 分别指定默认模型、Pi 命令及连接配置。
+    save_report 控制是否输出正式报告与清单；关闭时由调用方负责清理临时工作目录。
+    返回工作目录和已校验的内存报告。
+    """
     if timeout <= 0:
         raise ValueError("总超时必须大于 0")
     started, started_at = time.monotonic(), utc_now()
@@ -22,10 +28,11 @@ def run_one(input_directory, output_root, *, repository, branch=None, run_url=No
     Path(output_root).mkdir(parents=True, exist_ok=True)
     batch = Path(tempfile.mkdtemp(prefix="review-batch-", dir=Path(output_root).resolve()))
     batch.chmod(0o700)
-    manifest = {"schema_version": "manifest.v1", "batch_id": batch.name, "repository": repository,
-        "expected_commits": [metadata["commit_sha"]], "reports": [], "unprocessed_commits": [metadata["commit_sha"]],
-        "notification_status": "not_requested"}
-    save_json(batch / "manifest.json", manifest)
+    if save_report:
+        manifest = {"schema_version": "manifest.v1", "batch_id": batch.name, "repository": repository,
+            "expected_commits": [metadata["commit_sha"]], "reports": [], "unprocessed_commits": [metadata["commit_sha"]],
+            "notification_status": "not_requested"}
+        save_json(batch / "manifest.json", manifest)
     assessments, baseline = [], None
     for index in range(2):
         correction = None
@@ -74,6 +81,8 @@ def run_one(input_directory, output_root, *, repository, branch=None, run_url=No
         final.update(error="timeout", feedback=["review_budget_exhausted"])
     report = build_report(final, repository=repository, branch=branch, run_url=run_url,
                           control_directory=ROOT, started_at=started_at)
+    if not save_report:
+        return batch, report
     directory = batch / (report["commit_sha"][:12] + "-" + report["attempt_id"])
     write_report(directory, report, assessments, corrections=len(assessments) - 1)
     manifest["reports"] = [{"commit_sha": report["commit_sha"], "attempt_id": report["attempt_id"],

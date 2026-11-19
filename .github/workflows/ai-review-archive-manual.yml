@@ -11,7 +11,7 @@ permissions:
 jobs:
   archive:
     name: Upload and download one saved review artifact
-    runs-on: [self-hosted, linux, x64, ai-commit-review]
+    runs-on: ai-commit-review
     timeout-minutes: 10
     steps:
       - name: Validate the prepared report package

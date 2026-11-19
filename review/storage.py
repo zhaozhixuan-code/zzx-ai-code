@@ -303,7 +303,7 @@ class GitHubArtifactStore:
         except (ValueError, KeyError, TypeError):
             raise StorageError("github_list_invalid") from None
 
-    def _download(self, item, key):
+    def download_archive(self, item):
         """下载 API 的一分钟有效签名链接；第二次请求不携带 GitHub token。"""
         status, headers, _ = self._api(f"/actions/artifacts/{item['id']}/zip", MAX_ARCHIVE)
         if status != 302:
@@ -319,7 +319,11 @@ class GitHubArtifactStore:
         expected_digest = item.get("digest")
         if expected_digest is not None and expected_digest != "sha256:" + digest(data):
             raise StorageError("github_artifact_digest_mismatch")
-        bundle = decode_bundle(data, repository=self.repository, key=key)
+        return data
+
+    def _download(self, item, key):
+        """按仓库和审查键核验已下载的报告包。"""
+        bundle = decode_bundle(self.download_archive(item), repository=self.repository, key=key)
         if item["name"] != artifact_name(bundle.report):
             raise StorageError("artifact_name_mismatch")
         bundle.origin = f"github-artifact:{item['id']}"

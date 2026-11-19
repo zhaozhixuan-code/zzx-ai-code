@@ -261,6 +261,25 @@ class GitHubTests(StorageFixture):
 class BatchTests(StorageFixture):
     """验证实际调用次数、独立执行记录、默认停止和显式重审/补跑。"""
 
+    @unittest.skipUnless(os.name == "posix", "批次执行入口需要 POSIX")
+    def test_filtered_only_commit_is_archived_without_running_pi(self):
+        """过滤后没有源码变更时保存跳过报告，即使未配置模型密钥。"""
+        self.files["current"] = self.files["parent"].copy()
+        self.write_input(excluded={"review/README.md": "excluded_path"})
+        with patch.dict(os.environ, {"DEEPSEEK_API_KEY": ""}):
+            batch, manifest = run_batch(self.plan(), self.root / "runs", self.store)
+        entry = manifest["reports"][0]
+        self.assertEqual(manifest["failed_commits"], [])
+        self.assertEqual(entry["execution_status"], "skipped")
+        self.assertEqual(entry["storage_status"], "saved_locally")
+        self.assertEqual(entry["review_key"], entry["requested_review_key"])
+        _, [(result, _)] = storage.load_saved_batch(batch / "manifest.json")
+        self.assertEqual((result["review_status"], result["verdict"]), ("skipped", "inconclusive"))
+        self.assertIsNone(result["pi_version"])
+        record = report.read_json(batch / entry["files"]["execution.json"])
+        self.assertEqual(record["model_attempts"], [])
+        self.assertEqual(record["report_validation"], "not_performed")
+
     def test_same_identity_reuses_without_calling_runner(self):
         """首次审查后同键复用，旧报告状态及尝试 ID 不变，新执行另记 reused。"""
         plan = self.plan()

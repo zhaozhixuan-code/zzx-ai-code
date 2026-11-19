@@ -206,6 +206,10 @@ def assess_attempt(directory, control_directory):
                 raise ValueError("执行记录与指定控制代码不一致")
         if execution.get("provider") != "deepseek" or not isinstance(execution.get("model"), str):
             raise ValueError("执行记录模型或版本无效")
+        if execution["stage"] == "skipped":
+            if view.metadata["changed_files"] or execution.get("pi_version") is not None:
+                raise ValueError("跳过记录与源码变更或 Pi 版本不符")
+            return result
         if execution["stage"] == "failed":
             result["error"] = "invalid_output" if execution.get("error") == "invalid_model_output" else execution.get("error", "pi_failed")
             result["feedback"] = [result["error"]]
@@ -293,6 +297,10 @@ def build_report(assessment, *, repository, branch, run_url, control_directory, 
         state, verdict = "failed", "inconclusive"
         summary, findings, questions = "未形成有效审查报告，错误分类：" + assessment["error"] + "。原始任务记录已保留。", [], []
         limits, complete = [GENERAL_LIMIT], None
+    elif execution["stage"] == "skipped":
+        state, verdict = "skipped", "inconclusive"
+        summary = "过滤后没有可审查的源码变更，已跳过模型审查。"
+        findings, questions, limits, complete = [], [], [GENERAL_LIMIT], None
     else:
         complete = candidate["review_complete"]
         gaps = bool(coverage["unread_changed_files"] or coverage["has_filtered_inputs"] or coverage["has_snapshot_skips"])
@@ -380,11 +388,15 @@ def write_report(directory, report, assessments, *, corrections=0):
     directory.mkdir(mode=0o700)
     save_json(directory / "review.json", report)
     (directory / "review.md").write_bytes(render_markdown(report).encode("utf-8"))
+    validation = report["coverage"]["reference_validation"]
+    if validation != "passed" and report["review_status"] != "skipped":
+        validation = "failed"
     save_json(directory / "execution.json", {"phase": "finished", "review_status": report["review_status"],
-        "verdict": report["verdict"], "error": report["error"], "report_validation": "passed" if report["coverage"]["reference_validation"] == "passed" else "failed",
+        "verdict": report["verdict"], "error": report["error"], "report_validation": validation,
         "started_at": report["started_at"], "finished_at": report["finished_at"], "output_corrections": corrections,
         "model_attempts": [{"directory": item["job"], "execution": item["execution"], "validation_error": item["error"],
-                            "validation_feedback": item["feedback"]} for item in assessments], "notification_status": "not_requested"})
+                            "validation_feedback": item["feedback"]} for item in assessments
+                           if item["execution"].get("stage") != "skipped"], "notification_status": "not_requested"})
 
 
 def export_batch(attempts, output_root, *, repository, control_directory, branch=None, run_url=None, expected_commits=None):

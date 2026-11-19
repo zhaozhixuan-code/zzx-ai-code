@@ -40,7 +40,7 @@ permissions:
   contents: read
 
 env:
-  REVIEW_CONTROL_SHA: 9474c0976cc6507e0a6064560163ecf77fd74aa1
+  REVIEW_CONTROL_SHA: 673ee3215eca3da666fa3791918e8bac912995be
 
 jobs:
   plan:
@@ -267,7 +267,8 @@ jobs:
         if: >-
           steps.preview.outputs.notify == 'true' &&
           ((inputs.notification_run && inputs.confirm_message_sha256) ||
-           (!inputs.notification_run && vars.AI_REVIEW_SEND_FEISHU == 'true'))
+           (!inputs.notification_run && github.event_name == 'push' && github.ref == 'refs/heads/master' &&
+            vars.AI_REVIEW_SEND_FEISHU == 'true'))
         shell: bash
         env:
           GITHUB_TOKEN: ${{ github.token }}

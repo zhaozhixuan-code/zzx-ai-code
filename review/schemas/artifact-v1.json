@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "repository", "review_key", "attempt_id", "commit_sha", "base_sha", "review_status", "verdict", "created_at", "expires_at", "files"],
+  "properties": {
+    "schema_version": {"const": "review-artifact.v1"},
+    "repository": {"type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$", "maxLength": 210},
+    "review_key": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "attempt_id": {"type": "string", "pattern": "^[a-f0-9]{32}$"},
+    "commit_sha": {"type": "string", "pattern": "^([a-f0-9]{40}|[a-f0-9]{64})$"},
+    "base_sha": {"type": ["string", "null"], "pattern": "^([a-f0-9]{40}|[a-f0-9]{64})$"},
+    "review_status": {"enum": ["completed", "incomplete", "failed", "skipped"]},
+    "verdict": {"enum": ["issues_found", "no_findings", "inconclusive"]},
+    "created_at": {"type": "string", "maxLength": 40},
+    "expires_at": {"type": "string", "maxLength": 40},
+    "files": {
+      "type": "object", "additionalProperties": false,
+      "required": ["review.json", "review.md", "execution.json"],
+      "properties": {
+        "review.json": {"$ref": "#/$defs/file"}, "review.md": {"$ref": "#/$defs/file"}, "execution.json": {"$ref": "#/$defs/file"}
+      }
+    }
+  },
+  "$defs": {
+    "file": {
+      "type": "object", "additionalProperties": false, "required": ["sha256", "bytes"],
+      "properties": {"sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "bytes": {"type": "integer", "minimum": 0, "maximum": 2097152}}
+    }
+  }
+}

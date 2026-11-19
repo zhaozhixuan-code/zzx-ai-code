@@ -18,7 +18,7 @@ GitHub 收到 `master` 或 `codex/ai-review-e2e` 的 push 后，由 **AI commit 
 | --- | --- |
 | `AI_REVIEW_MASTER_ENABLED` | 接收 `master` 的 push。 |
 | `AI_REVIEW_RUN_MODEL` | 运行模型并归档报告。 |
-| `AI_REVIEW_SEND_FEISHU` | 自动发送批次摘要。 |
+| `AI_REVIEW_SEND_FEISHU` | 自动发送 `master` 推送的批次摘要。 |
 
 先在验收分支检查 `range.json` 和审查归档。运行正常后开启 `master` 推送入口。确认机器人目标群、签名和发送范围后再启用自动通知。单提交默认预算为 480 秒，可用 `AI_REVIEW_TIMEOUT_SECONDS` 设置 1～480 秒。
 
@@ -27,7 +27,7 @@ GitHub 收到 `master` 或 `codex/ai-review-e2e` 的 push 后，由 **AI commit 
 - 在 **Actions → AI commit review** 查看相应运行。范围归档 `ai-review-range-<尝试号>` 保存 SHA、批次和 `deferred`；批次归档 `ai-review-batch-<运行ID>-<尝试号>-<批次>` 保存清单、报告和执行记录。批次从 0 开始，归档默认保留 30 天。
 - 每次 push 最多安排 50 个提交，每批最多 10 个。手动补审时，在 **Run workflow** 填写 `commit`，或用 `base` 和 `head` 指定范围。三个字段都填完整 SHA。对 `deferred` 可逐个补审，或按固定范围再分段。
 - 同一审查键的完成报告可以复用。勾选 `force_review` 会重新审查并保存独立尝试。使用 **Re-run failed jobs** 会沿用该运行已归档的计划，通知作业会跳过。
-- `completed/no_findings` 表示本次审查无有效发现。`failed` 或 `incomplete` 请检查报告中的原因、执行记录和覆盖限制。
+- `completed/no_findings` 表示本次审查无有效发现。`failed` 或 `incomplete` 请检查报告中的原因、执行记录和覆盖限制。仅涉及被过滤路径等没有可审查源码变更的提交会归档为 `skipped/inconclusive`。
 - 打开批次归档中的 `manifest.json` 核对每个提交的处理状态，再按清单中的路径打开 `review.md` 查看审查结论或 `execution.json` 查看执行记录。若该次运行只有范围归档，先查看 `review` 作业是否被跳过，并检查 `AI_REVIEW_RUN_MODEL`。
 
 ## 仅通知或补发

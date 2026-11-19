@@ -213,6 +213,10 @@ def run_review(input_directory, output_root, *, timeout=480, label="review", mod
         execution.update({"input_directory": str(root), "commit_sha": metadata["commit_sha"],
                           "base_sha": metadata["base_sha"], "rules_sha256": digest(rules_path.read_bytes()),
                           "tools_sha256": digest(extension.read_bytes()), "diff_sha256": digest(diff.encode("utf-8"))})
+        # 过滤后的变更清单为空时，没有可以交给模型审查的内容。
+        if not metadata["changed_files"]:
+            execution.update(stage="skipped")
+            return execution
         if not api_key:
             raise ReviewFailure("authentication_failed")
         config, cwd = job / "pi-config", job / "cwd"

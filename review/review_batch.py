@@ -110,15 +110,17 @@ def run_batch(plan_file, output_root, store_root, *, force_review=False, retry_f
             view = InputView.load(item["input_directory"])
             if (view.metadata["commit_sha"], view.metadata["base_sha"]) != (sha, item["base_sha"]):
                 raise ValueError("计划与过滤输入的 SHA 不符")
+            has_reviewable_changes = bool(view.metadata["changed_files"])
             identity = review_identity(view, repository=plan["repository"], branch=plan["branch"],
-                control_directory=ROOT, model=model, budget=timeout)
+                control_directory=ROOT, model=model, budget=timeout,
+                pi_version="1.5.2" if has_reviewable_changes else None)
             entry["requested_review_key"] = identity["review_key"]
             reused = None
             try:
                 # 创建存储目录也可能失败；在批次清单建立后执行，保留全部预期 SHA。
                 if local is None:
                     local = LocalArtifactStore(store_root)
-                if not force_review:
+                if has_reviewable_changes and not force_review:
                     reused = local.find(plan["repository"], identity["review_key"])
                     if reused is None and github_store is not None:
                         reused = github_store.find(plan["repository"], identity["review_key"])
@@ -141,7 +143,8 @@ def run_batch(plan_file, output_root, store_root, *, force_review=False, retry_f
                 directory = (inner / produced["reports"][0]["files"]["review.json"]).parent
                 if result["review_status"] != "failed" and result["review_key"] != identity["review_key"]:
                     raise StorageError("model_report_identity_mismatch")
-                entry.update(execution_status="reviewed", storage_status="pending")
+                entry.update(execution_status="skipped" if result["review_status"] == "skipped" else "reviewed",
+                             storage_status="pending")
                 # 先保留本批报告引用，再进行归档；保存失败不改写有效审查的结论。
                 entry.update({field: result[field] for field in ("review_key", "attempt_id", "review_status", "verdict", "error")})
                 entry.update(record_files(batch, directory))

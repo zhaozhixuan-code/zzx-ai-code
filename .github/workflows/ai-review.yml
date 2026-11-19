@@ -40,7 +40,7 @@ permissions:
   contents: read
 
 env:
-  REVIEW_CONTROL_SHA: f7db585e8961528b8dc62208f119a0c03b304b3e
+  REVIEW_CONTROL_SHA: eebfa4cfd55c841d5ec51918fd796d1e7ee530de
 
 jobs:
   plan:

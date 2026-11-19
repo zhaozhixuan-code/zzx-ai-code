@@ -30,6 +30,12 @@ GitHub 收到 `master` 或 `codex/ai-review-e2e` 的 push 后，由 **AI commit 
 - `completed/no_findings` 表示本次审查无有效发现。`failed` 或 `incomplete` 请检查报告中的原因、执行记录和覆盖限制。仅涉及被过滤路径等没有可审查源码变更的提交会归档为 `skipped/inconclusive`。
 - 打开批次归档中的 `manifest.json` 核对每个提交的处理状态，再按清单中的路径打开 `review.md` 查看审查结论或 `execution.json` 查看执行记录。若该次运行只有范围归档，先查看 `review` 作业是否被跳过，并检查 `AI_REVIEW_RUN_MODEL`。
 
+## 核对飞书自动投递
+
+- 对 `master` 的 push 启用自动通知时，`AI_REVIEW_MASTER_ENABLED`、`AI_REVIEW_RUN_MODEL` 和 `AI_REVIEW_SEND_FEISHU` 都应为 `true`。普通手动补审会生成通知预览，手动发送已有报告请使用下方的仅通知入口。
+- 运行成功但飞书没有消息时，在对应 Actions 运行中打开 `notify (批次号)`，查看 `Send a single signed Feishu summary`。若显示跳过，先核对事件是否为 `master` 的首次 push 运行，以及 `AI_REVIEW_SEND_FEISHU` 是否已开启。
+- 在运行的 Artifacts 中打开后缀为 `-receipt` 的通知归档。`feishu-receipt.json` 中的 `status: sent`、`http_status: 200`、`business_code: 0` 表示飞书已受理。只有 `-pending` 归档时先到目标群核对，确认上一条投递结果后再决定是否补发。
+
 ## 仅通知或补发
 
 1. 在 **Run workflow** 填写 `notification_run`、`notification_attempt` 和 `notification_batch`，分别为原审查运行、尝试号和批次索引。留空 `confirm_message_sha256` 生成预览。

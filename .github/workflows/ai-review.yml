@@ -1,0 +1,232 @@
+name: AI commit review
+
+on:
+  push:
+    branches: [master, codex/ai-review-e2e]
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: Full SHA for one commit (defaults to the selected branch tip)
+        type: string
+      base:
+        description: Full base SHA for a historical range
+        type: string
+      head:
+        description: Full head SHA for a historical range
+        type: string
+      force_review:
+        description: Bypass cached reports for this execution
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  REVIEW_CONTROL_SHA: 4b9164d91d92f4d29730b3e89ff30fbfe681b0d4
+
+jobs:
+  plan:
+    if: >-
+      github.repository == 'zhaozhixuan-code/zzx-ai-code' &&
+      (github.ref == 'refs/heads/codex/ai-review-e2e' ||
+       (github.ref == 'refs/heads/master' && vars.AI_REVIEW_MASTER_ENABLED == 'true'))
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    outputs:
+      batches: ${{ steps.range.outputs.batches }}
+      scheduled: ${{ steps.range.outputs.scheduled }}
+    steps:
+      - name: Check out the trusted review controller
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ env.REVIEW_CONTROL_SHA }}
+          persist-credentials: false
+      - name: Calculate the exact commit range
+        id: range
+        shell: bash
+        env:
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.event.after }}
+          INPUT_COMMIT: ${{ inputs.commit }}
+          INPUT_BASE: ${{ inputs.base }}
+          INPUT_HEAD: ${{ inputs.head }}
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check -q -r review/requirements.txt
+          source_dir="$RUNNER_TEMP/review-source"
+          out="$RUNNER_TEMP/review-range"
+          args=(--git "$source_dir" --output "$out" --repository "$GITHUB_REPOSITORY" --branch "$GITHUB_REF_NAME" --github-output "$GITHUB_OUTPUT")
+          if [[ "$GITHUB_EVENT_NAME" == push ]]; then
+            bash review/fetch-source.sh "$source_dir" "$PUSH_AFTER" "$PUSH_BEFORE"
+            args+=(--event "$GITHUB_EVENT_PATH")
+          elif [[ -n "$INPUT_BASE" || -n "$INPUT_HEAD" ]]; then
+            bash review/fetch-source.sh "$source_dir" "$INPUT_COMMIT" "$INPUT_HEAD" "$INPUT_BASE"
+            args+=(--base "$INPUT_BASE" --head "$INPUT_HEAD")
+            if [[ -n "$INPUT_COMMIT" ]]; then args+=(--commit "$INPUT_COMMIT"); fi
+          else
+            requested="${INPUT_COMMIT:-$GITHUB_SHA}"
+            bash review/fetch-source.sh "$source_dir" "$requested"
+            args+=(--commit "$requested")
+          fi
+          python3 review/review_push.py plan "${args[@]}"
+      - name: Upload the range, including deferred commits
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ai-review-range-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/review-range/range.json
+          if-no-files-found: error
+          retention-days: 30
+
+  review:
+    needs: plan
+    if: needs.plan.outputs.scheduled != '0' && vars.AI_REVIEW_RUN_MODEL == 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    environment: ai-review-model
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        batch: ${{ fromJSON(needs.plan.outputs.batches) }}
+    steps:
+      - name: Check out the trusted review controller
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ env.REVIEW_CONTROL_SHA }}
+          persist-credentials: false
+      - name: Install the pinned Node runtime
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22.22.1'
+      - name: Install the trusted controller dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check -q -r review/requirements.txt
+          npm ci --prefix "$GITHUB_WORKSPACE/review" --ignore-scripts --no-fund --no-audit
+          "$GITHUB_WORKSPACE/review/node_modules/.bin/pi" --version
+      - name: Download the planned commit range
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ai-review-range-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/review-range
+      - name: Fetch the fixed commit history
+        shell: bash
+        env:
+          BATCH_INDEX: ${{ matrix.batch }}
+        run: |
+          set -euo pipefail
+          requested=$(python3 -c 'import json,sys; print("\n".join(json.load(open(sys.argv[1]))["batches"][int(sys.argv[2])]))' "$RUNNER_TEMP/review-range/range.json" "$BATCH_INDEX")
+          mapfile -t shas <<< "$requested"
+          bash review/fetch-source.sh "$RUNNER_TEMP/review-source" "${shas[@]}"
+      - name: Review and save this batch
+        id: model
+        shell: bash
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          BATCH_INDEX: ${{ matrix.batch }}
+          FORCE_REVIEW: ${{ inputs.force_review }}
+        run: |
+          set -euo pipefail
+          export PATH="$GITHUB_WORKSPACE/review/node_modules/.bin:$PATH"
+          args=(--batch "$BATCH_INDEX" --git "$RUNNER_TEMP/review-source"
+                --selection "$RUNNER_TEMP/review-range/range.json" --work "$RUNNER_TEMP/review-work"
+                --output "$RUNNER_TEMP/ai-review-batch-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$BATCH_INDEX"
+                --run-url "https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --control-sha "$REVIEW_CONTROL_SHA")
+          if [[ "$FORCE_REVIEW" == true ]]; then args+=(--force); fi
+          python3 review/review_push.py review "${args[@]}"
+      - name: Upload the saved batch reports
+        if: ${{ !cancelled() && steps.model.outcome != 'skipped' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ai-review-batch-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.batch }}
+          path: ${{ runner.temp }}/ai-review-batch-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.batch }}/
+          if-no-files-found: error
+          retention-days: 30
+
+  notify:
+    needs: [plan, review]
+    if: >-
+      !cancelled() && github.run_attempt == 1 && needs.plan.result == 'success' &&
+      (needs.review.result == 'success' || needs.review.result == 'failure')
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    environment: ai-review-feishu
+    permissions:
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        batch: ${{ fromJSON(needs.plan.outputs.batches) }}
+    steps:
+      - name: Check out the trusted review controller
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ env.REVIEW_CONTROL_SHA }}
+          persist-credentials: false
+      - name: Download the saved report archive
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ai-review-batch-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.batch }}
+          path: ${{ runner.temp }}/review-batch
+      - name: Verify the archive and prepare the Feishu summary
+        id: preview
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          ARCHIVE_NAME: ai-review-batch-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.batch }}
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check -q -r review/requirements.txt
+          python3 review/notify_actions.py preview --manifest "$RUNNER_TEMP/review-batch/manifest.json" \
+            --artifact "$ARCHIVE_NAME" --run-id "$GITHUB_RUN_ID" --output "$RUNNER_TEMP/notify-preview" \
+            --github-output "$GITHUB_OUTPUT"
+      - name: Record the pending delivery before sending
+        id: pending
+        if: vars.AI_REVIEW_SEND_FEISHU == 'true' && steps.preview.outputs.notify == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - "$RUNNER_TEMP/notify-preview" "$RUNNER_TEMP/notification-pending.json" <<'PY'
+          import hashlib, json, sys
+          from pathlib import Path
+          root = Path(sys.argv[1])
+          summary = json.loads((root / 'summary.json').read_bytes())
+          message = json.loads((root / 'message.json').read_bytes())
+          payload = json.dumps(message, ensure_ascii=False, sort_keys=True, separators=(',', ':'), allow_nan=False).encode('utf-8')
+          pending = {'batch_id': summary['batch_id'], 'status': 'unknown', 'message_sha256': hashlib.sha256(payload).hexdigest()}
+          Path(sys.argv[2]).write_text(json.dumps(pending), encoding='utf-8')
+          PY
+      - name: Archive the pending delivery record
+        if: steps.pending.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ai-review-notification-pending-${{ matrix.batch }}
+          path: ${{ runner.temp }}/notification-pending.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Send a single signed Feishu summary
+        id: send
+        if: steps.pending.outcome == 'success'
+        env:
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+          FEISHU_SIGNING_SECRET: ${{ secrets.FEISHU_SIGNING_SECRET }}
+          FEISHU_TARGET_NAME: ${{ vars.FEISHU_TARGET_NAME }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 review/notify_actions.py send --preview "$RUNNER_TEMP/notify-preview" \
+            --config "$RUNNER_TEMP/feishu-destination.json" --state "$RUNNER_TEMP/feishu-state" \
+            --receipt "$RUNNER_TEMP/feishu-receipt.json"
+      - name: Upload the final notification receipt
+        if: ${{ !cancelled() && (steps.send.outcome == 'success' || steps.send.outcome == 'failure') }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ai-review-notification-receipt-${{ matrix.batch }}
+          path: ${{ runner.temp }}/feishu-receipt.json
+          if-no-files-found: error
+          retention-days: 30

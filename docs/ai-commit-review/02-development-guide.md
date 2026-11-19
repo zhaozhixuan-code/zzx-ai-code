@@ -216,7 +216,6 @@ master push → GitHub 派单 → 服务器 Runner 拉取固定 Git SHA
 
 ### 4.1 文件分工
 
-
 | 位置 | 用途 |
 | --- | --- |
 | `.github/workflows/ai-review.yml` | 自动与手动入口、分批作业和归档 |

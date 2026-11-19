@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 import re
 import shutil
@@ -10,6 +11,7 @@ import shutil
 from git_source import GitSourceError, enumerate_commits, load_event, prepare_input
 from report import read_json, save_json, validate_context
 from review_batch import run_batch
+from storage import GitHubArtifactStore
 
 
 BATCH_SIZE = 10
@@ -73,8 +75,12 @@ def execute(args):
     batch_plan = parent / "plan.json"
     save_json(batch_plan, {"schema_version": "review-plan.v1", "repository": selection["repository"],
               "branch": selection["branch"], "expected_commits": commits, "inputs": prepared})
+    github_store = None
+    if args.github_artifacts:
+        github_store = GitHubArtifactStore(selection["repository"], token=os.environ["GITHUB_TOKEN"],
+            workflow_path=".github/workflows/ai-review.yml", head_branch=selection["branch"])
     directory, manifest = run_batch(batch_plan, parent / "results", parent / "store", force_review=args.force,
-                                     run_url=args.run_url, timeout=args.timeout)
+                                     github_store=github_store, run_url=args.run_url, timeout=args.timeout)
     manifest["preparation_errors"] = failures
     manifest["batch_id"] = publish.name
     manifest["control_sha"] = args.control_sha
@@ -83,6 +89,8 @@ def execute(args):
             target = publish / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(directory / relative, target)
+        if args.upload_staging and (staged := record.get("upload_directory")):
+            shutil.copytree(directory / staged, Path(args.upload_staging) / record["artifact_name"])
         for key in ("archive", "upload_directory"):
             record.pop(key, None)
     save_json(publish / "manifest.json", manifest)
@@ -110,6 +118,8 @@ def main():
     runner.add_argument("--control-sha")
     runner.add_argument("--timeout", type=float, default=480)
     runner.add_argument("--force", action="store_true")
+    runner.add_argument("--github-artifacts", action="store_true")
+    runner.add_argument("--upload-staging")
     runner.set_defaults(handler=execute)
     args = parser.parse_args()
     return args.handler(args)

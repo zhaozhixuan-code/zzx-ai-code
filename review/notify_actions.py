@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 from pathlib import Path
 from urllib.parse import urlencode
 from urllib.request import Request, build_opener
@@ -11,7 +12,32 @@ from urllib.request import Request, build_opener
 from feishu_summary import POLICIES, read_summary, rich_message
 from notify_feishu import deliver, read_destination
 from report import read_json, save_json
-from storage import NoRedirect
+from storage import GitHubArtifactStore, NoRedirect
+
+
+def select_range(args):
+    """输出当前运行中最近可用的范围归档；只重跑失败作业时沿用原 plan 的归档。"""
+    store = GitHubArtifactStore(args.repository, token=os.environ["GITHUB_TOKEN"])
+    candidates = {}
+    for page in range(1, 101):
+        status, headers, content = store._api(f"/actions/runs/{args.run_id}/artifacts?per_page=100&page={page}")
+        if status != 200:
+            raise ValueError(f"无法查询本次运行的范围归档（HTTP {status}）")
+        for item in json.loads(content)["artifacts"]:
+            match = re.fullmatch(r"ai-review-range-([1-9][0-9]*)", item["name"])
+            if match and not item["expired"] and int(match[1]) <= args.attempt:
+                if match[1] in candidates:
+                    raise ValueError("范围归档名称不唯一")
+                candidates[match[1]] = item["name"]
+        if 'rel="next"' not in headers.get("link", ""):
+            break
+    else:
+        raise ValueError("范围归档分页超限")
+    if not candidates:
+        raise ValueError("找不到本次运行已保存的范围归档")
+    with Path(args.github_output).open("a", encoding="utf-8") as stream:
+        print(f"name={candidates[max(candidates, key=int)]}", file=stream)
+    return 0
 
 
 def preview(args):
@@ -73,6 +99,12 @@ def main():
     """预览只需 GitHub 只读令牌，发送只需飞书配置；两者由不同步骤调用。"""
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(required=True)
+    select = commands.add_parser("select-range")
+    for name in ("repository", "github-output"):
+        select.add_argument("--" + name, required=True)
+    for name in ("run-id", "attempt"):
+        select.add_argument("--" + name, type=int, required=True)
+    select.set_defaults(handler=select_range)
     prepare = commands.add_parser("preview")
     for name in ("manifest", "artifact", "output", "github-output"):
         prepare.add_argument("--" + name, required=True)

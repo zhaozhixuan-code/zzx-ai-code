@@ -250,11 +250,28 @@ class HttpTransport:
 class GitHubArtifactStore:
     """按 GitHub REST artifacts API 分页查询和下载；真实上传由 S09 Actions 负责。"""
 
-    def __init__(self, repository, *, token=None, transport=None, now=clock_now):
-        """repository 为 owner/name；token 仅用于 api.github.com 请求，可为空读取公开仓库。"""
-        validate_context(repository)
+    def __init__(self, repository, *, token=None, transport=None, now=clock_now, workflow_path=None, head_branch=None):
+        """按 owner/name 查询，可限定生产报告的 workflow_path 和 head_branch。token 仅发给 GitHub API。"""
+        validate_context(repository, head_branch)
         self.repository, self.token = repository, token
         self.transport, self.now = transport or HttpTransport(), now
+        self.workflow_path, self.head_branch = workflow_path, head_branch
+
+    def _trusted_producer(self, item):
+        """限定生产来源时，核对 artifact 的仓库、分支及运行所使用的工作流路径。"""
+        if self.workflow_path is None:
+            return True
+        run = item.get("workflow_run")
+        if (not isinstance(run, dict) or type(run.get("id")) is not int or run["id"] <= 0
+                or run.get("repository_id") != run.get("head_repository_id")
+                or run.get("head_branch") != self.head_branch):
+            return False
+        status, _, content = self._api(f"/actions/runs/{run['id']}")
+        if status != 200:
+            raise StorageError(f"github_producer_http_{status}")
+        info = parse_json(content.decode("utf-8"))
+        return (info["path"].split("@", 1)[0] == self.workflow_path
+                and info["event"] in ("push", "workflow_dispatch"))
 
     def _api(self, path, limit=2 * 1024 * 1024):
         """只向固定 GitHub API 主机发送认证，不使用 artifact 提供的任意下载 URL。"""
@@ -317,7 +334,7 @@ class GitHubArtifactStore:
             for item in self.list_artifacts():
                 if not item["name"].startswith(PREFIX + key + "-"):
                     continue
-                if item["expired"] or utc_time(item["expires_at"]) <= self.now():
+                if item["expired"] or utc_time(item["expires_at"]) <= self.now() or not self._trusted_producer(item):
                     continue
                 if type(item.get("size_in_bytes")) is not int or not 0 < item["size_in_bytes"] <= MAX_ARCHIVE:
                     raise StorageError("github_artifact_size_invalid")

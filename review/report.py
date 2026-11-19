@@ -173,7 +173,7 @@ def validate_candidate(candidate, view, reads):
     unread = [f"{revision}:{name}" for name in view.metadata["changed_files"] for revision in ("current", "parent")
               if name in view.lines[revision] and ((revision, name) not in reads
                   or not view.changed[revision].get(name, set()) <= reads[(revision, name)])]
-    coverage = {"unread_changed_files": unread, "has_filtered_inputs": bool(view.metadata.get("excluded")),
+    coverage = {"unread_changed_files": unread, "has_filtered_inputs": bool(view.metadata.get("excluded_changed_files", view.metadata.get("excluded"))),
                 "has_snapshot_skips": any(bool(value) for value in (view.metadata.get("source_snapshot_skips") or {}).values()),
                 "reference_validation": "passed"}
     return coverage
@@ -286,7 +286,7 @@ def build_report(assessment, *, repository, branch, run_url, control_directory, 
         provider=execution["provider"], model=execution["model"], pi_version=execution.get("pi_version"),
         budget=execution.get("review_budget_seconds"), rules_sha256=execution["rules_sha256"],
         tools_sha256=execution["tools_sha256"], commit_sha=execution["commit_sha"], base_sha=execution["base_sha"])
-    coverage = assessment["coverage"] or {"unread_changed_files": [], "has_filtered_inputs": bool(view and view.metadata.get("excluded")),
+    coverage = assessment["coverage"] or {"unread_changed_files": [], "has_filtered_inputs": bool(view and view.metadata.get("excluded_changed_files", view.metadata.get("excluded"))),
         "has_snapshot_skips": bool(view and any(bool(value) for value in (view.metadata.get("source_snapshot_skips") or {}).values())),
         "reference_validation": "not_performed"}
     if assessment["error"]:
@@ -303,7 +303,7 @@ def build_report(assessment, *, repository, branch, run_url, control_directory, 
         if coverage["unread_changed_files"]:
             limits.append("部分变更文件未读取，或变更行没有完整读取记录，详见 coverage.unread_changed_files。")
         if coverage["has_filtered_inputs"]:
-            limits.append("输入包含被过滤的路径，程序保守标记覆盖未完成，不能给出整个提交无问题的结论。")
+            limits.append("存在未覆盖的过滤路径，不能给出整个提交无问题的结论。")
         if coverage["has_snapshot_skips"]:
             limits.append("源码导出时存在跳过项，相关范围未完成审查。")
         if not complete:

@@ -218,8 +218,21 @@ def prepare_input(repo, sha, directory):
                 new = next(names).decode("utf-8", errors="replace")
                 if old in parent and new in current:
                     renames.append({"from": old, "to": new})
+    # Git 变更清单覆盖受限、二进制及模式变化。未变动的受限路径只限制工具可见范围。
+    if base:
+        raw_changes = git(repo, "diff", "--no-ext-diff", "--no-textconv", "--no-renames", "--name-only", "-z", base, sha, "--")
+    else:
+        raw_changes = git(repo, "diff-tree", "--root", "-r", "--no-commit-id", "--no-renames", "--name-only", "-z", sha, "--")
+    excluded_changes = set()
+    for raw in raw_changes.split(b"\0"):
+        if raw:
+            escaped = "invalid-path-" + digest(raw)[:16]
+            name = escaped if escaped in excluded else raw.decode("utf-8")
+            if name in excluded:
+                excluded_changes.add(name)
     save_json(directory / "filter-manifest.json", {
-        "commit_sha": sha, "base_sha": base, "policy": "git-source-conservative-v1",
+        "commit_sha": sha, "base_sha": base, "policy": "git-source-conservative-v2",
+        "excluded_changed_files": sorted(excluded_changes),
         "file_sha256": hashes, "changed_files": changed, "excluded": excluded, "renames": renames,
         "limitations": ["只读取允许的源码和构建清单；启发式过滤不能识别全部秘密。",
                         "提交说明未发送给模型。"], "source_snapshot_skips": {"current": [], "parent": []},

@@ -2,7 +2,7 @@ name: AI commit review
 
 on:
   push:
-    branches: [master, codex/ai-review-e2e]
+    branches: [master]
   workflow_dispatch:
     inputs:
       commit:
@@ -40,14 +40,14 @@ permissions:
   contents: read
 
 env:
-  REVIEW_CONTROL_SHA: eebfa4cfd55c841d5ec51918fd796d1e7ee530de
+  REVIEW_CONTROL_SHA: ${{ github.workflow_sha }}
 
 jobs:
   plan:
     if: >-
       github.repository == 'zhaozhixuan-code/zzx-ai-code' && !inputs.notification_run &&
-      (github.ref == 'refs/heads/codex/ai-review-e2e' ||
-       (github.ref == 'refs/heads/master' && (github.event_name == 'workflow_dispatch' || vars.AI_REVIEW_MASTER_ENABLED == 'true')))
+      github.ref == 'refs/heads/master' &&
+      (github.event_name == 'workflow_dispatch' || vars.AI_REVIEW_MASTER_ENABLED == 'true')
     runs-on: ubuntu-22.04
     timeout-minutes: 10
     outputs:
@@ -98,8 +98,10 @@ jobs:
 
   review:
     needs: plan
-    if: needs.plan.outputs.scheduled != '0' && vars.AI_REVIEW_RUN_MODEL == 'true'
-    runs-on: ubuntu-22.04
+    if: >-
+      github.repository == 'zhaozhixuan-code/zzx-ai-code' && github.ref == 'refs/heads/master' &&
+      needs.plan.outputs.scheduled != '0' && vars.AI_REVIEW_RUN_MODEL == 'true'
+    runs-on: ai-commit-review
     timeout-minutes: 90
     environment: ai-review-model
     permissions:
@@ -122,9 +124,13 @@ jobs:
           node-version: '22.22.1'
       - name: Install the trusted controller dependencies
         shell: bash
+        env:
+          REVIEW_JOB_DIR: ${{ runner.temp }}/ai-review-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.batch }}
         run: |
           set -euo pipefail
-          python3 -m pip install --disable-pip-version-check -q -r review/requirements.txt
+          mkdir -m 700 "$REVIEW_JOB_DIR"
+          python3 -m pip install --disable-pip-version-check --target "$REVIEW_JOB_DIR/python" -q -r review/requirements.txt
+          printf 'REVIEW_JOB_DIR=%s\nPYTHONPATH=%s\n' "$REVIEW_JOB_DIR" "$REVIEW_JOB_DIR/python" >> "$GITHUB_ENV"
           npm ci --prefix "$GITHUB_WORKSPACE/review" --ignore-scripts --no-fund --no-audit
           "$GITHUB_WORKSPACE/review/node_modules/.bin/pi" --version
       - name: Locate the saved plan for this run
@@ -139,16 +145,16 @@ jobs:
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: ${{ steps.plan-artifact.outputs.name }}
-          path: ${{ runner.temp }}/review-range
+          path: ${{ env.REVIEW_JOB_DIR }}/review-range
       - name: Fetch the fixed commit history
         shell: bash
         env:
           BATCH_INDEX: ${{ matrix.batch }}
         run: |
           set -euo pipefail
-          requested=$(python3 -c 'import json,sys; print("\n".join(json.load(open(sys.argv[1]))["batches"][int(sys.argv[2])]))' "$RUNNER_TEMP/review-range/range.json" "$BATCH_INDEX")
+          requested=$(python3 -c 'import json,sys; print("\n".join(json.load(open(sys.argv[1]))["batches"][int(sys.argv[2])]))' "$REVIEW_JOB_DIR/review-range/range.json" "$BATCH_INDEX")
           mapfile -t shas <<< "$requested"
-          bash review/fetch-source.sh "$RUNNER_TEMP/review-source" "${shas[@]}"
+          bash review/fetch-source.sh "$REVIEW_JOB_DIR/review-source" "${shas[@]}"
       - name: Review and save this batch
         id: model
         shell: bash
@@ -162,10 +168,11 @@ jobs:
           set -euo pipefail
           [[ "$REVIEW_TIMEOUT" =~ ^[1-9][0-9]{0,2}$ && "$REVIEW_TIMEOUT" -le 480 ]]
           export PATH="$GITHUB_WORKSPACE/review/node_modules/.bin:$PATH"
-          args=(--batch "$BATCH_INDEX" --git "$RUNNER_TEMP/review-source"
-                --selection "$RUNNER_TEMP/review-range/range.json" --work "$RUNNER_TEMP/review-work" --github-artifacts
-                --upload-staging "$RUNNER_TEMP/review-report-artifacts" --timeout "$REVIEW_TIMEOUT"
-                --output "$RUNNER_TEMP/ai-review-batch-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$BATCH_INDEX"
+          args=(--batch "$BATCH_INDEX" --git "$REVIEW_JOB_DIR/review-source"
+                --selection "$REVIEW_JOB_DIR/review-range/range.json" --work "$REVIEW_JOB_DIR/review-work" --github-artifacts
+                --upload-staging "$REVIEW_JOB_DIR/review-report-artifacts" --timeout "$REVIEW_TIMEOUT"
+                --output "$REVIEW_JOB_DIR/ai-review-batch-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$BATCH_INDEX"
+                --pi-config "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
                 --run-url "https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --control-sha "$REVIEW_CONTROL_SHA")
           if [[ "$FORCE_REVIEW" == true ]]; then args+=(--force); fi
           python3 review/review_push.py review "${args[@]}"
@@ -174,7 +181,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ai-review-batch-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.batch }}
-          path: ${{ runner.temp }}/ai-review-batch-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.batch }}/
+          path: ${{ env.REVIEW_JOB_DIR }}/ai-review-batch-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.batch }}/
           if-no-files-found: error
           retention-days: 30
       - name: Publish individual reports for future reuse
@@ -185,7 +192,7 @@ jobs:
             const fs = require('node:fs/promises');
             const path = require('node:path');
             const { DefaultArtifactClient } = require(path.join(process.env.GITHUB_WORKSPACE, 'review', 'node_modules', '@actions', 'artifact'));
-            const root = path.join(process.env.RUNNER_TEMP, 'review-report-artifacts');
+            const root = path.join(process.env.REVIEW_JOB_DIR, 'review-report-artifacts');
             const entries = await fs.readdir(root, { withFileTypes: true }).catch(error => {
               if (error.code === 'ENOENT') return [];
               throw error;
@@ -204,7 +211,7 @@ jobs:
     needs: [plan, review]
     if: >-
       !cancelled() && github.run_attempt == 1 && github.repository == 'zhaozhixuan-code/zzx-ai-code' &&
-      (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/codex/ai-review-e2e') &&
+      github.ref == 'refs/heads/master' &&
       ((github.event_name == 'workflow_dispatch' && inputs.notification_run) ||
        (needs.plan.result == 'success' && (needs.review.result == 'success' || needs.review.result == 'failure')))
     runs-on: ubuntu-22.04

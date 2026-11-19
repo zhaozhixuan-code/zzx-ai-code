@@ -15,6 +15,7 @@ import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import report
+from pi_model import PiModel
 from review_batch import run_batch
 from review_one import run_one
 import storage
@@ -87,7 +88,7 @@ class StorageFixture(report_tests.ReportFixture):
         """返回无外部模型的执行器，按指定顺序生成成功、失败或未完成报告。"""
         outcomes = outcomes or ["completed"]
 
-        def invoke(input_directory, output_root, *, repository, branch, run_url, timeout, model):
+        def invoke(input_directory, output_root, *, repository, branch, run_url, timeout, model, model_profile):
             """参数与真实 run_one 一致；每次调用都保留独立模型任务和报告。"""
             state = outcomes[min(self.calls, len(outcomes) - 1)]
             self.calls += 1
@@ -98,6 +99,11 @@ class StorageFixture(report_tests.ReportFixture):
                                              input_directory=input_directory, budget=timeout)
             # 使用真实报告导出流程，将这份受控任务放到调用方指定的批次目录。
             source_job = report.read_json(directory / "execution.json")["model_attempts"][0]["directory"]
+            execution_path = Path(source_job) / "execution.json"
+            execution = report.read_json(execution_path)
+            execution.update(provider=model_profile.provider, model=model,
+                             model_connection_sha256=model_profile.connection_sha256)
+            report.save_json(execution_path, execution)
             batch, manifest = report.export_batch([source_job], output_root, repository=repository,
                 control_directory=report.ROOT, branch=branch, run_url=run_url)
             result = report.read_json(batch / manifest["reports"][0]["files"]["review.json"])
@@ -279,6 +285,19 @@ class BatchTests(StorageFixture):
         record = report.read_json(batch / entry["files"]["execution.json"])
         self.assertEqual(record["model_attempts"], [])
         self.assertEqual(record["report_validation"], "not_performed")
+
+    def test_pi_base_url_change_invalidates_existing_review(self):
+        plan = self.plan()
+        runtime = self.runner()
+        profiles = [PiModel("proxy", "flash", {"baseUrl": f"https://{host}.example/v1"})
+                    for host in ("one", "one", "two")]
+        entries = []
+        for profile in profiles:
+            _, manifest = run_batch(plan, self.root / "runs", self.store, runner=runtime, model_profile=profile)
+            entries.append(manifest["reports"][0])
+        self.assertEqual([entry["execution_status"] for entry in entries], ["reviewed", "reused", "reviewed"])
+        self.assertEqual(self.calls, 2)
+        self.assertNotEqual(entries[0]["review_key"], entries[2]["review_key"])
 
     def test_same_identity_reuses_without_calling_runner(self):
         """首次审查后同键复用，旧报告状态及尝试 ID 不变，新执行另记 reused。"""

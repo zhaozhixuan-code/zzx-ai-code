@@ -56,6 +56,17 @@ if '--version' in sys.argv:
     print('1.5.2')
     raise SystemExit(0)
 job = Path(os.environ['REVIEW_RUN_DIR'])
+config_dir = Path(os.environ['PI_CODING_AGENT_DIR'])
+assert (config_dir / 'settings.json').is_file()
+(job / 'config-path.txt').write_text(str(config_dir))
+if MODE == 'custom':
+    provider = sys.argv[sys.argv.index('--provider') + 1]
+    assert provider == 'gateway'
+    assert sys.argv[sys.argv.index('--model') + 1] == 'gateway-flash'
+    assert json.loads((config_dir / 'models.json').read_text())['providers'][provider]['baseUrl'] == 'https://gateway.example/v1'
+    key = json.loads((config_dir / 'auth.json').read_text())[provider]['key']
+    print('401: authentication_error ' + key)
+    raise SystemExit(0)
 (job / 'inherited-keys.json').write_text(json.dumps(sorted(os.environ)))
 with Path(__file__).with_suffix('.calls').open('a') as stream:
     stream.write('called\\n')
@@ -84,10 +95,10 @@ print(json.dumps({'review_complete':True,'summary':'fixture result','findings':[
         file.write_text(program % mode, encoding="utf-8")
         return file
 
-    def execute(self, mode="success", timeout=10):
+    def execute(self, mode="success", timeout=10, model_profile=None):
         """调用实际执行器，结果保留在测试临时目录内。"""
         return runner.run_review(self.input, self.root / "results", timeout=timeout,
-                                 pi_command=[sys.executable, str(self.fake_pi(mode))])
+                                 pi_command=[sys.executable, str(self.fake_pi(mode))], model_profile=model_profile)
 
     def test_success_and_credentials_isolation(self):
         """候选结果不等于已通过报告校验，且业务凭据不能进入 Pi 环境。"""
@@ -132,7 +143,19 @@ print(json.dumps({'review_complete':True,'summary':'fixture result','findings':[
         first, second = self.execute(), self.execute()
         self.assertNotEqual(first["attempt_directory"], second["attempt_directory"])
         for result in (first, second):
-            self.assertTrue((Path(result["attempt_directory"]) / "pi-config/settings.json").is_file())
+            config = Path((Path(result["attempt_directory"]) / "config-path.txt").read_text())
+            self.assertFalse(config.exists())
+
+    def test_custom_provider_uses_pi_model_and_auth_then_removes_temporary_files(self):
+        profile = runner.PiModel("gateway", "gateway-flash", {"baseUrl": "https://gateway.example/v1"},
+                                 {"type": "api_key", "key": self.key})
+        result = self.execute("custom", model_profile=profile)
+        job = Path(result["attempt_directory"])
+        self.assertEqual(result["error"], "authentication_failed")
+        self.assertEqual(result["provider"], "gateway")
+        self.assertEqual(result["model_connection_sha256"], profile.connection_sha256)
+        self.assertNotIn(self.key, (job / "pi.stdout.txt").read_text())
+        self.assertFalse(Path((job / "config-path.txt").read_text()).exists())
 
     def test_timeout_reaps_child_group(self):
         """总超时终止假 Pi 与其子进程；僵尸状态不视为仍在执行。"""

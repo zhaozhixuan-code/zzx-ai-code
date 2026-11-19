@@ -14,7 +14,8 @@ import tempfile
 import time
 from datetime import datetime, timezone
 
-DEFAULT_MODEL = "deepseek-flash"
+from pi_model import DEFAULT_MODEL, PiModel
+
 TOOLS = ["review_list", "review_read", "review_search"]
 MAX_OUTPUT = 2 * 1024 * 1024
 ROOT = Path(__file__).resolve().parent
@@ -130,18 +131,19 @@ def load_input(input_directory):
     return root, metadata, diff
 
 
-def child_environment(job, api_key):
-    """构造最小子进程环境：仅传 DeepSeek 凭据和必要运行参数。"""
+def child_environment(job, config, credentials):
+    """向 Pi 传入本次连接所需的凭据和独立配置目录。"""
     env = {key: os.environ[key] for key in ("PATH", "LANG", "LC_ALL", "TZ") if key in os.environ}
-    env.update({"DEEPSEEK_API_KEY": api_key, "PI_CODING_AGENT_DIR": str(job / "pi-config"),
+    env.update(credentials)
+    env.update({"PI_CODING_AGENT_DIR": str(config),
                 "REVIEW_RUN_DIR": str(job), "PI_OFFLINE": "1", "PI_SKIP_VERSION_CHECK": "1"})
     return env
 
 
-def scrub(text, api_key):
+def scrub(text, secrets):
     """在落盘诊断前移除已知密钥及常见 API Key 形态。"""
-    if api_key:
-        text = text.replace(api_key, "[REDACTED]")
+    for secret in secrets:
+        text = text.replace(secret, "[REDACTED]")
     return re.sub(r"sk-[A-Za-z0-9_-]{16,}", "[REDACTED]", text)
 
 
@@ -189,7 +191,7 @@ def error_kind(text):
 
 
 def run_review(input_directory, output_root, *, timeout=480, label="review", model=DEFAULT_MODEL,
-               pi_command=None, rules=None, correction=None, review_budget_seconds=None):
+               pi_command=None, rules=None, correction=None, review_budget_seconds=None, model_profile=None):
     """运行独立审查；timeout 为本次剩余秒数，correction 为有界输出纠正材料，返回脱敏记录。"""
     if os.name != "posix":
         raise ValueError("Pi 审查执行器当前仅支持 Linux/POSIX 运行环境")
@@ -199,13 +201,15 @@ def run_review(input_directory, output_root, *, timeout=480, label="review", mod
     Path(output_root).mkdir(parents=True, exist_ok=True)
     job = Path(tempfile.mkdtemp(prefix=label + "-", dir=Path(output_root).resolve()))
     job.chmod(0o700)
+    profile = model_profile or PiModel(model=model)
     execution = {"stage": "preparing", "started_at": utc_now(), "attempt_directory": str(job),
-                 "provider": "deepseek", "model": model, "report_validation": "not_performed",
+                 "provider": profile.provider, "model": profile.model, "report_validation": "not_performed",
                  "timeout_seconds": timeout, "review_budget_seconds": timeout if review_budget_seconds is None else review_budget_seconds,
                  "output_correction": correction is not None}
-    api_key = os.environ.get("DEEPSEEK_API_KEY", "")
-    process = None
+    secrets = []
+    config_directory = process = None
     try:
+        execution["model_connection_sha256"] = profile.connection_sha256
         root, metadata, diff = load_input(input_directory)
         if job == root or root in job.parents:
             raise ValueError("执行目录不能位于源码输入目录内")
@@ -218,17 +222,19 @@ def run_review(input_directory, output_root, *, timeout=480, label="review", mod
         if not metadata["changed_files"]:
             execution.update(stage="skipped")
             return execution
-        if not api_key:
+        credentials, secrets = profile.credentials()
+        if not (credentials or profile.auth or profile.models):
             raise ReviewFailure("authentication_failed")
-        config, cwd = job / "pi-config", job / "cwd"
-        config.mkdir(mode=0o700)
+        config_directory = tempfile.TemporaryDirectory(prefix="pi-config-", dir=job)
+        config, cwd = Path(config_directory.name), job / "cwd"
+        profile.write(config)
         cwd.mkdir(mode=0o700)
         settings = {"retry": {"enabled": True, "maxRetries": 2, "baseDelayMs": 1000,
                     "maxAgentDelayMs": 30000, "provider": {"maxRetries": 0, "timeoutMs": int(timeout * 1000)}},
                     "cacheWarming": "off", "compaction": {"enabled": False},
                     "enableAnalytics": False, "enableInstallTelemetry": False, "defaultProjectTrust": "never"}
         (config / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
-        env = child_environment(job, api_key)
+        env = child_environment(job, config, credentials)
         env["REVIEW_INPUT"] = str(root)
         command = list(pi_command or ["pi"])
         version = subprocess.run(command + ["--version"], env=env, cwd=cwd, text=True,
@@ -256,7 +262,7 @@ def run_review(input_directory, output_root, *, timeout=480, label="review", mod
         args = command + ["--print", "--mode", "text", "--no-session", "--no-extensions", "--no-skills",
             "--no-prompt-templates", "--no-context-files", "--no-approve", "--no-mcp", "--no-builtin-tools",
             "--offline", "--extension", str(extension), "--tools", ",".join(TOOLS),
-            "--provider", "deepseek", "--model", model, "--thinking", "medium",
+            "--provider", profile.provider, "--model", profile.model, "--thinking", "medium",
             "--append-system-prompt", str(rules_path), "@" + str(job / "request.md")]
         out, err = job / "pi.stdout.txt", job / "pi.stderr.log"
         execution["stage"] = "reviewing"
@@ -280,7 +286,7 @@ def run_review(input_directory, output_root, *, timeout=480, label="review", mod
                     original = stream.read(MAX_OUTPUT + 1)
                 if len(original) > MAX_OUTPUT:
                     failure = failure or "output_limit"
-                text = scrub(original[:MAX_OUTPUT].decode("utf-8", errors="replace"), api_key)
+                text = scrub(original[:MAX_OUTPUT].decode("utf-8", errors="replace"), secrets)
                 file.write_text(text, encoding="utf-8")
                 if file == out:
                     stdout_text = text
@@ -319,10 +325,12 @@ def run_review(input_directory, output_root, *, timeout=480, label="review", mod
     except subprocess.TimeoutExpired:
         execution.update(stage="failed", error="timeout")
     except (OSError, ValueError, KeyError, TypeError) as error:
-        execution.update(stage="failed", error="preparation_or_protocol_error", diagnostic=scrub(str(error), api_key)[:1000])
+        execution.update(stage="failed", error="preparation_or_protocol_error", diagnostic=scrub(str(error), secrets)[:1000])
     finally:
         if process is not None and process.poll() is None:
             stop_group(process)
+        if config_directory is not None:
+            config_directory.cleanup()
         execution.update(finished_at=utc_now(), elapsed_seconds=round(time.monotonic() - started, 3))
         (job / "execution.json").write_text(json.dumps(execution, ensure_ascii=False, indent=2), encoding="utf-8")
     return execution

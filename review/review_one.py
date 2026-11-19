@@ -13,7 +13,7 @@ from report import ROOT, assess_attempt, build_report, save_json, write_report
 
 
 def run_one(input_directory, output_root, *, repository, branch=None, run_url=None, timeout=480,
-            model=DEFAULT_MODEL, pi_command=None):
+            model=DEFAULT_MODEL, pi_command=None, model_profile=None):
     """审查已过滤输入；timeout 为包含预检、两次模型输出和校验的总秒数。"""
     if timeout <= 0:
         raise ValueError("总超时必须大于 0")
@@ -49,7 +49,8 @@ def run_one(input_directory, output_root, *, repository, branch=None, run_url=No
             assessments[-1].update(error="timeout", feedback=["review_budget_exhausted"])
             break
         execution = run_review(root, batch / "model-attempts", timeout=remaining, label=f"model-{index + 1}",
-            model=model, pi_command=pi_command, correction=correction, review_budget_seconds=timeout)
+            model=model, pi_command=pi_command, correction=correction, review_budget_seconds=timeout,
+            model_profile=model_profile)
         assessment = assess_attempt(execution["attempt_directory"], ROOT)
         assessments.append(assessment)
         if assessment["error"] != "invalid_output":

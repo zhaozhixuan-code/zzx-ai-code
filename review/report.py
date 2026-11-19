@@ -15,6 +15,7 @@ import uuid
 
 from jsonschema import Draft202012Validator
 
+from pi_model import PROVIDER_PATTERN
 from pi_runner import DEFAULT_MODEL, TOOLS, digest, git_lines, load_input, parse_json, utc_now
 
 ROOT = Path(__file__).resolve().parent
@@ -204,7 +205,12 @@ def assess_attempt(directory, control_directory):
         for field, name in (("rules_sha256", "REVIEW.md"), ("tools_sha256", "review-tools.ts")):
             if execution[field] != digest((control / name).read_bytes()):
                 raise ValueError("执行记录与指定控制代码不一致")
-        if execution.get("provider") != "deepseek" or not isinstance(execution.get("model"), str):
+        provider = execution.get("provider")
+        connection = execution.get("model_connection_sha256")
+        if (not isinstance(provider, str) or not re.fullmatch(PROVIDER_PATTERN, provider)
+                or not isinstance(execution.get("model"), str)
+                or (connection is not None and (not isinstance(connection, str)
+                                                or not re.fullmatch(r"[a-f0-9]{64}", connection)))):
             raise ValueError("执行记录模型或版本无效")
         if execution["stage"] == "skipped":
             if view.metadata["changed_files"] or execution.get("pi_version") is not None:
@@ -257,11 +263,12 @@ def review_key_for(identity):
 
 
 def review_identity(view, *, repository, branch, control_directory, model=DEFAULT_MODEL, provider="deepseek",
-                    pi_version="1.5.2", budget=480, rules_sha256=None, tools_sha256=None, commit_sha=None, base_sha=None):
+                    pi_version="1.5.2", budget=480, rules_sha256=None, tools_sha256=None, commit_sha=None, base_sha=None,
+                    model_connection_sha256=None):
     """用过滤输入和已选配置预计算完整身份；失败任务的未知版本可为 null，不调用模型。"""
     validate_context(repository, branch)
     control_files = ["pi_runner.py", "review-tools.ts", "REVIEW.md"]
-    control_files += [name for name in ("review_one.py", "report.py", "storage.py", "review_batch.py",
+    control_files += [name for name in ("pi_model.py", "review_one.py", "report.py", "storage.py", "review_batch.py",
                       "schemas/review-v1.json", "schemas/artifact-v1.json", "requirements.txt",
                       "git_source.py", "package-lock.json")
                       if (Path(control_directory) / name).is_file()]
@@ -269,10 +276,13 @@ def review_identity(view, *, repository, branch, control_directory, model=DEFAUL
     validator = source_revision(ROOT, ["report.py", "schemas/review-v1.json"])
     rules = rules_sha256 or digest((Path(control_directory) / "REVIEW.md").read_bytes())
     tools = tools_sha256 or digest((Path(control_directory) / "review-tools.ts").read_bytes())
-    profile = digest(canonical({"provider": provider, "model": model,
+    profile_data = {"provider": provider, "model": model,
         "tools_sha256": tools, "validator_revision": validator,
         "input_manifest": view.manifest if view else None, "output_corrections": 1,
-        "review_budget_seconds": budget}))
+        "review_budget_seconds": budget}
+    if model_connection_sha256 is not None:
+        profile_data["model_connection_sha256"] = model_connection_sha256
+    profile = digest(canonical(profile_data))
     identity = {"schema_version": "review.v1", "repository": repository, "branch": branch,
         "commit_sha": view.metadata["commit_sha"] if view else commit_sha,
         "base_sha": view.metadata["base_sha"] if view else base_sha, "controller_revision": controller,
@@ -289,6 +299,7 @@ def build_report(assessment, *, repository, branch, run_url, control_directory, 
     identity = review_identity(view, repository=repository, branch=branch, control_directory=control_directory,
         provider=execution["provider"], model=execution["model"], pi_version=execution.get("pi_version"),
         budget=execution.get("review_budget_seconds"), rules_sha256=execution["rules_sha256"],
+        model_connection_sha256=execution.get("model_connection_sha256"),
         tools_sha256=execution["tools_sha256"], commit_sha=execution["commit_sha"], base_sha=execution["base_sha"])
     coverage = assessment["coverage"] or {"unread_changed_files": [], "has_filtered_inputs": bool(view and view.metadata.get("excluded_changed_files", view.metadata.get("excluded"))),
         "has_snapshot_skips": bool(view and any(bool(value) for value in (view.metadata.get("source_snapshot_skips") or {}).values())),

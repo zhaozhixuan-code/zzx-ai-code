@@ -1,14 +1,14 @@
 # AI 提交审查
 
-GitHub 收到 `master` 或 `codex/ai-review-e2e` 的 push 后，由 **AI commit review** 计算该次推送的提交范围。GitHub 托管 runner 使用 Pi 和 DeepSeek 对每个提交与其第一父版本做静态审查，归档报告，再按设置向飞书发送批次摘要。旧报告的手动归档仍由专用 runner 执行。
+GitHub 收到 `master` 的 push 后，**AI commit review** 按事件中的 SHA 计算提交范围。服务器上的 `zzx-ai-review` Runner 从 GitHub 拉取这些提交和父版本，调用 Pi Agent 做静态审查。GitHub Actions 归档报告，再向飞书发送批次摘要。
 
 ## 启用
 
-在仓库 **Settings → Environments** 配置两个环境，并限制可使用环境的分支。当前允许 `master` 和 `codex/ai-review-e2e`。
+在仓库 **Settings → Environments** 配置两个环境，并限制可使用环境的分支。配置为允许 `master`。服务器 Runner 需在线并带有 `ai-commit-review` 标签，运行用户需要 `git`、`python3` 和 `python3 -m pip`。
 
 | 环境 | 类型 | 名称 |
 | --- | --- | --- |
-| `ai-review-model` | Secret | `DEEPSEEK_API_KEY` |
+| `ai-review-model` | Secret | `DEEPSEEK_API_KEY`（默认 DeepSeek 直连接入使用） |
 | `ai-review-feishu` | Secret | `FEISHU_WEBHOOK_URL`、`FEISHU_SIGNING_SECRET` |
 | `ai-review-feishu` | Variable | `FEISHU_TARGET_NAME` |
 
@@ -20,7 +20,43 @@ GitHub 收到 `master` 或 `codex/ai-review-e2e` 的 push 后，由 **AI commit 
 | `AI_REVIEW_RUN_MODEL` | 运行模型并归档报告。 |
 | `AI_REVIEW_SEND_FEISHU` | 自动发送 `master` 推送的批次摘要。 |
 
-先在验收分支检查 `range.json` 和审查归档。运行正常后开启 `master` 推送入口。确认机器人目标群、签名和发送范围后再启用自动通知。单提交默认预算为 480 秒，可用 `AI_REVIEW_TIMEOUT_SECONDS` 设置 1～480 秒。
+手动运行一次 `master` 工作流即可核对服务器 Runner 和审查归档。单提交默认预算为 480 秒，可用 `AI_REVIEW_TIMEOUT_SECONDS` 设置 1～480 秒。
+
+## 切换模型或接入地址
+
+登录服务器后，编辑 `ai-review-runner` 用户的 Pi 配置。默认目录是 `/var/lib/ai-review-runner/.pi/agent/`。如果 Runner 服务设置了 `PI_CODING_AGENT_DIR`，使用该目录。新审查批次会重新读取配置，模型和接入地址的日常切换无需重启 Runner 或修改 GitHub 工作流。
+
+- `settings.json` 用 `defaultProvider` 和 `defaultModel` 选择连接及模型。未配置时使用 `deepseek` 和 `deepseek-flash`。
+- `models.json` 管理自定义连接。在 `providers.<provider>.baseUrl` 填接入地址，在 `models` 注册网关实际使用的模型 ID。内置模型只换地址时，可在对应 provider 下设置 `baseUrl` 和该接入的凭据。
+- API Key 可用 Pi 的 `/login` 保存到 Runner 用户的 `auth.json`，也可通过 `models.json` 的 `apiKey` 设置。文件需由 Runner 用户持有，含凭据的文件权限设为 `0600`。`apiKey` 可引用 Runner 服务环境中以 `_API_KEY` 结尾的变量。审查使用 API Key 认证。默认 DeepSeek 直连可继续使用 GitHub 环境已有的 `DEEPSEEK_API_KEY`。
+
+例如，将支持工具调用的 OpenAI 兼容网关命名为 `review-gateway`。先保存 `models.json`，再在 `settings.json` 选择它。
+
+`models.json`
+
+```json
+{
+  "providers": {
+    "review-gateway": {
+      "baseUrl": "https://gateway.example.com/v1",
+      "api": "openai-completions",
+      "apiKey": "替换为该网关的 API Key",
+      "models": [{ "id": "deepseek-flash" }]
+    }
+  }
+}
+```
+
+`settings.json`
+
+```json
+{
+  "defaultProvider": "review-gateway",
+  "defaultModel": "deepseek-flash"
+}
+```
+
+多个网关各用一个 provider 名，可分别保留它们的地址和 API Key。下一次运行的 `review.json` 会记录选中的 `provider` 和 `model`。更换接入地址后，相同提交也会重新审查。
 
 ## 查看结果和补审
 

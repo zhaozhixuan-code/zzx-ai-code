@@ -7,8 +7,10 @@ import os
 from pathlib import Path
 import re
 import shutil
+import sys
 
 from git_source import GitSourceError, enumerate_commits, load_event, prepare_input
+from pi_model import PiModel
 from report import read_json, save_json, validate_context
 from review_batch import run_batch
 from storage import GitHubArtifactStore
@@ -62,9 +64,20 @@ def execute(args):
         raise ValueError("范围中的批次提交无效")
     parent.mkdir(mode=0o700)
     publish.mkdir(mode=0o700)
-    prepared = []
-    failures = {}
+    prepared, failures = [], {}
+    profile = None
+    if args.pi_config:
+        try:
+            profile = PiModel.load(args.pi_config)
+            profile.connection_sha256
+            profile.credentials()
+        except ValueError as error:
+            print(f"Pi configuration error: {error}", file=sys.stderr)
+            profile = None
+            failures = dict.fromkeys(commits, "pi_configuration_invalid")
     for sha in commits:
+        if sha in failures:
+            continue
         location = parent / sha
         try:
             base = prepare_input(args.git, sha, location)
@@ -80,7 +93,8 @@ def execute(args):
         github_store = GitHubArtifactStore(selection["repository"], token=os.environ["GITHUB_TOKEN"],
             workflow_path=".github/workflows/ai-review.yml", head_branch=selection["branch"])
     directory, manifest = run_batch(batch_plan, parent / "results", parent / "store", force_review=args.force,
-                                     github_store=github_store, run_url=args.run_url, timeout=args.timeout)
+                                     github_store=github_store, run_url=args.run_url, timeout=args.timeout,
+                                     model_profile=profile)
     manifest["preparation_errors"] = failures
     manifest["batch_id"] = publish.name
     manifest["control_sha"] = args.control_sha
@@ -116,6 +130,7 @@ def main():
     runner.add_argument("--batch", required=True, type=int)
     runner.add_argument("--run-url")
     runner.add_argument("--control-sha")
+    runner.add_argument("--pi-config", type=Path, help="Path to the runner user’s Pi agent configuration")
     runner.add_argument("--timeout", type=float, default=480)
     runner.add_argument("--force", action="store_true")
     runner.add_argument("--github-artifacts", action="store_true")

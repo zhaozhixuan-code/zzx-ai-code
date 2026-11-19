@@ -19,7 +19,7 @@
     "rules_sha256": {"$ref": "#/$defs/digest"},
     "review_profile_sha256": {"$ref": "#/$defs/digest"},
     "pi_version": {"enum": ["1.5.2", null]},
-    "provider": {"const": "deepseek"},
+    "provider": {"type": "string", "pattern": "^[A-Za-z0-9_.-]{1,80}$"},
     "model": {"type": "string", "minLength": 1, "maxLength": 150},
     "review_status": {"enum": ["completed", "incomplete", "failed", "skipped"]},
     "verdict": {"enum": ["issues_found", "no_findings", "inconclusive"]},

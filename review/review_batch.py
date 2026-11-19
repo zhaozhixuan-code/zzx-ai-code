@@ -9,6 +9,7 @@ import re
 import tempfile
 import uuid
 
+from pi_model import PiModel
 from pi_runner import DEFAULT_MODEL, digest, parse_json, utc_now
 from report import InputView, ROOT, read_json, review_identity, save_json, validate_context
 from review_one import run_one
@@ -76,12 +77,14 @@ def record_files(batch, directory):
 
 def run_batch(plan_file, output_root, store_root, *, force_review=False, retry_failed=None,
               github_store=None, allow_duplicate_on_storage_error=False, retention_days=30,
-              timeout=480, model=DEFAULT_MODEL, run_url=None, runner=None):
+              timeout=480, model=DEFAULT_MODEL, run_url=None, runner=None, model_profile=None):
     """逐提交执行计划；默认查询失败停止，显式放行才允许在存储异常后重新调用模型。"""
     if force_review and retry_failed:
         raise ValueError("强制重审和失败补跑不能同时启用")
     if timeout <= 0 or type(retention_days) is not int or not 1 <= retention_days <= 90:
         raise ValueError("超时或保留期无效")
+    profile = model_profile or PiModel(model=model)
+    connection = profile.connection_sha256
     plan = load_plan(plan_file)
     validate_context(plan["repository"], plan["branch"], run_url)
     selected = retry_selection(retry_failed, plan) if retry_failed else set(plan["expected_commits"])
@@ -112,7 +115,8 @@ def run_batch(plan_file, output_root, store_root, *, force_review=False, retry_f
                 raise ValueError("计划与过滤输入的 SHA 不符")
             has_reviewable_changes = bool(view.metadata["changed_files"])
             identity = review_identity(view, repository=plan["repository"], branch=plan["branch"],
-                control_directory=ROOT, model=model, budget=timeout,
+                control_directory=ROOT, provider=profile.provider, model=profile.model, budget=timeout,
+                model_connection_sha256=connection,
                 pi_version="1.5.2" if has_reviewable_changes else None)
             entry["requested_review_key"] = identity["review_key"]
             reused = None
@@ -135,7 +139,7 @@ def run_batch(plan_file, output_root, store_root, *, force_review=False, retry_f
                 entry.update(execution_status="reused", storage_status="reused", source_artifact=reused.origin)
             else:
                 inner, result = (runner or run_one)(view.root, batch / "model-runs", repository=plan["repository"],
-                    branch=plan["branch"], run_url=run_url, timeout=timeout, model=model)
+                    branch=plan["branch"], run_url=run_url, timeout=timeout, model=profile.model, model_profile=profile)
                 inner = Path(inner)
                 produced, _ = load_saved_batch(inner / "manifest.json")
                 if len(produced["reports"]) != 1:

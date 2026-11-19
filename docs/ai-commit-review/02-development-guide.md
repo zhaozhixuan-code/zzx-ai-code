@@ -610,3 +610,18 @@ python3 "$review_root/control/s08-sender-v1/notify_feishu.py" \
 - 补发时先确认上一条实际收件情况。只允许补发最近一条状态为 `failed` 或 `unknown` 的投递，填 `previous_delivery_run` 和原消息 SHA-256。保存的待确认记录在发送前上传，最终回执在发送后上传。超过 30 天保留期时，先人工核对历史收件和已保存报告，再决定是否重审或发送。
 - 暂停自动审查时关闭 `AI_REVIEW_MASTER_ENABLED`，暂停批次自动通知时关闭 `AI_REVIEW_SEND_FEISHU`。需要停用所有工作流入口时，在 GitHub 禁用 `AI commit review`，另行取消仍在排队或运行的任务。
 - 模型超时查看失败批次的报告和执行记录。若作业失败但 Pi 正常退出，从 `review.json` 的 `coverage.unread_changed_files` 核对未覆盖的版本和文件，必要时重跑失败作业。手动审查的邮件标题显示工作流所在分支的 SHA，实际审查目标以范围归档和报告为准。归档下载失败时检查运行 ID、尝试号、批次索引、保留期和访问权限。飞书返回 HTTP 错误或业务码时看最终回执，只有待确认归档时按 `unknown` 处理。
+
+
+## 8. 将模型审查迁到服务器
+
+| 步骤 | 变更 | 验收 |
+| --- | --- | --- |
+| 1 | `master` push 触发计划，`review` 使用 `ai-commit-review` Runner 按 SHA 拉取差异 | Actions 的 `review` 作业显示 `zzx-ai-review`，归档中的提交及其父 SHA 与推送一致 |
+| 2 | 每批读取 Runner 用户的 Pi 配置，支持更换模型和接入地址 | 报告记录选中的 provider 和 model，切换地址时产生新的审查键 |
+| 3 | Actions 归档审查结果并向飞书发送摘要 | 正式 push 产生批次归档及 `sent` 投递回执 |
+
+服务端配置位置和模型切换方法见 [审查运行说明](../../review/README.md)。第 7 节记录迁移前的运行和验收证据。
+
+- 服务器的 `zzx-ai-review` Runner 服务已在运行。专用账号下通过 57 项 Python 测试，工作流通过 `actionlint` 检查。
+- 服务器已从真实 GitHub 仓库拉取 `59e2ef02f7a1335c55ff7cdb2daf5e0d17954114`，核对第一父提交为 `e25e41ec48add190d4ab7ad6e92a5ab87314554f`。Pi 1.5.2 通过两个本地测试网关分别完成工具调用和报告归档，两个审查键不同。测试网关返回预设响应。
+- 迁移代码仍在本地。上线后须核对 `review` 作业接单的 Runner、真实 Flash 审查、GitHub 批次归档和飞书投递回执。

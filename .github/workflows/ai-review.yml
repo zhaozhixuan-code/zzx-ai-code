@@ -23,7 +23,7 @@ permissions:
   contents: read
 
 env:
-  REVIEW_CONTROL_SHA: 4b9164d91d92f4d29730b3e89ff30fbfe681b0d4
+  REVIEW_CONTROL_SHA: 8569a93b81427c361c4e7e5226cd4ae079dc0b80
 
 jobs:
   plan:
@@ -85,6 +85,9 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 90
     environment: ai-review-model
+    permissions:
+      contents: read
+      actions: read
     strategy:
       fail-fast: false
       max-parallel: 2
@@ -107,10 +110,18 @@ jobs:
           python3 -m pip install --disable-pip-version-check -q -r review/requirements.txt
           npm ci --prefix "$GITHUB_WORKSPACE/review" --ignore-scripts --no-fund --no-audit
           "$GITHUB_WORKSPACE/review/node_modules/.bin/pi" --version
+      - name: Locate the saved plan for this run
+        id: plan-artifact
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python3 review/notify_actions.py select-range --repository "$GITHUB_REPOSITORY" \
+            --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" --github-output "$GITHUB_OUTPUT"
       - name: Download the planned commit range
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: ai-review-range-${{ github.run_attempt }}
+          name: ${{ steps.plan-artifact.outputs.name }}
           path: ${{ runner.temp }}/review-range
       - name: Fetch the fixed commit history
         shell: bash
@@ -126,13 +137,15 @@ jobs:
         shell: bash
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
           BATCH_INDEX: ${{ matrix.batch }}
           FORCE_REVIEW: ${{ inputs.force_review }}
         run: |
           set -euo pipefail
           export PATH="$GITHUB_WORKSPACE/review/node_modules/.bin:$PATH"
           args=(--batch "$BATCH_INDEX" --git "$RUNNER_TEMP/review-source"
-                --selection "$RUNNER_TEMP/review-range/range.json" --work "$RUNNER_TEMP/review-work"
+                --selection "$RUNNER_TEMP/review-range/range.json" --work "$RUNNER_TEMP/review-work" --github-artifacts
+                --upload-staging "$RUNNER_TEMP/review-report-artifacts"
                 --output "$RUNNER_TEMP/ai-review-batch-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$BATCH_INDEX"
                 --run-url "https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --control-sha "$REVIEW_CONTROL_SHA")
           if [[ "$FORCE_REVIEW" == true ]]; then args+=(--force); fi
@@ -145,6 +158,28 @@ jobs:
           path: ${{ runner.temp }}/ai-review-batch-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.batch }}/
           if-no-files-found: error
           retention-days: 30
+      - name: Publish individual reports for future reuse
+        if: ${{ !cancelled() && steps.model.outcome != 'skipped' }}
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          script: |
+            const fs = require('node:fs/promises');
+            const path = require('node:path');
+            const { DefaultArtifactClient } = require(path.join(process.env.GITHUB_WORKSPACE, 'review', 'node_modules', '@actions', 'artifact'));
+            const root = path.join(process.env.RUNNER_TEMP, 'review-report-artifacts');
+            const entries = await fs.readdir(root, { withFileTypes: true }).catch(error => {
+              if (error.code === 'ENOENT') return [];
+              throw error;
+            });
+            const client = new DefaultArtifactClient();
+            for (const entry of entries) {
+              if (!entry.isDirectory() || !/^ai-review-v1-[a-f0-9]{64}-[a-f0-9]{32}$/.test(entry.name)) {
+                throw new Error('Unexpected staged report directory');
+              }
+              const folder = path.join(root, entry.name);
+              const files = ['artifact.json', 'review.json', 'review.md', 'execution.json'];
+              await client.uploadArtifact(entry.name, files.map(file => path.join(folder, file)), folder, { retentionDays: 30 });
+            }
 
   notify:
     needs: [plan, review]

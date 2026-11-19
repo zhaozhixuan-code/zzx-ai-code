@@ -18,19 +18,36 @@ on:
         description: Bypass cached reports for this execution
         type: boolean
         default: false
+      notification_run:
+        description: Existing review run ID for notification-only mode
+        type: string
+      notification_attempt:
+        description: Attempt number of the source run
+        type: string
+        default: '1'
+      notification_batch:
+        description: Batch index in the source run, starting at 0
+        type: string
+        default: '0'
+      confirm_message_sha256:
+        description: Use the previewed message SHA-256 to authorize one delivery
+        type: string
+      previous_delivery_run:
+        description: Latest notification run ID when explicitly retrying a failed or unknown delivery
+        type: string
 
 permissions:
   contents: read
 
 env:
-  REVIEW_CONTROL_SHA: 8569a93b81427c361c4e7e5226cd4ae079dc0b80
+  REVIEW_CONTROL_SHA: 9474c0976cc6507e0a6064560163ecf77fd74aa1
 
 jobs:
   plan:
     if: >-
-      github.repository == 'zhaozhixuan-code/zzx-ai-code' &&
+      github.repository == 'zhaozhixuan-code/zzx-ai-code' && !inputs.notification_run &&
       (github.ref == 'refs/heads/codex/ai-review-e2e' ||
-       (github.ref == 'refs/heads/master' && vars.AI_REVIEW_MASTER_ENABLED == 'true'))
+       (github.ref == 'refs/heads/master' && (github.event_name == 'workflow_dispatch' || vars.AI_REVIEW_MASTER_ENABLED == 'true')))
     runs-on: ubuntu-22.04
     timeout-minutes: 10
     outputs:
@@ -140,12 +157,14 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           BATCH_INDEX: ${{ matrix.batch }}
           FORCE_REVIEW: ${{ inputs.force_review }}
+          REVIEW_TIMEOUT: ${{ vars.AI_REVIEW_TIMEOUT_SECONDS || '480' }}
         run: |
           set -euo pipefail
+          [[ "$REVIEW_TIMEOUT" =~ ^[1-9][0-9]{0,2}$ && "$REVIEW_TIMEOUT" -le 480 ]]
           export PATH="$GITHUB_WORKSPACE/review/node_modules/.bin:$PATH"
           args=(--batch "$BATCH_INDEX" --git "$RUNNER_TEMP/review-source"
                 --selection "$RUNNER_TEMP/review-range/range.json" --work "$RUNNER_TEMP/review-work" --github-artifacts
-                --upload-staging "$RUNNER_TEMP/review-report-artifacts"
+                --upload-staging "$RUNNER_TEMP/review-report-artifacts" --timeout "$REVIEW_TIMEOUT"
                 --output "$RUNNER_TEMP/ai-review-batch-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$BATCH_INDEX"
                 --run-url "https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --control-sha "$REVIEW_CONTROL_SHA")
           if [[ "$FORCE_REVIEW" == true ]]; then args+=(--force); fi
@@ -184,8 +203,10 @@ jobs:
   notify:
     needs: [plan, review]
     if: >-
-      !cancelled() && github.run_attempt == 1 && needs.plan.result == 'success' &&
-      (needs.review.result == 'success' || needs.review.result == 'failure')
+      !cancelled() && github.run_attempt == 1 && github.repository == 'zhaozhixuan-code/zzx-ai-code' &&
+      (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/codex/ai-review-e2e') &&
+      ((github.event_name == 'workflow_dispatch' && inputs.notification_run) ||
+       (needs.plan.result == 'success' && (needs.review.result == 'success' || needs.review.result == 'failure')))
     runs-on: ubuntu-22.04
     timeout-minutes: 10
     environment: ai-review-feishu
@@ -196,51 +217,76 @@ jobs:
       fail-fast: false
       max-parallel: 2
       matrix:
-        batch: ${{ fromJSON(needs.plan.outputs.batches) }}
+        batch: ${{ (inputs.notification_run && fromJSON('[0]')) || fromJSON(needs.plan.outputs.batches || '[]') }}
+    concurrency:
+      group: ai-review-feishu-${{ inputs.notification_run || github.run_id }}-${{ (inputs.notification_run && inputs.notification_attempt) || github.run_attempt }}-${{ (inputs.notification_run && inputs.notification_batch) || matrix.batch }}
+      cancel-in-progress: false
     steps:
       - name: Check out the trusted review controller
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ env.REVIEW_CONTROL_SHA }}
           persist-credentials: false
+      - name: Resolve the source report archive
+        id: source
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          BATCH_INDEX: ${{ matrix.batch }}
+          NOTIFICATION_RUN: ${{ inputs.notification_run }}
+          NOTIFICATION_ATTEMPT: ${{ inputs.notification_attempt }}
+          NOTIFICATION_BATCH: ${{ inputs.notification_batch }}
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check -q -r review/requirements.txt
+          python3 review/notify_actions.py resolve-source --repository "$GITHUB_REPOSITORY" \
+            --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" --batch "$BATCH_INDEX" \
+            --source-run "$NOTIFICATION_RUN" --source-attempt "$NOTIFICATION_ATTEMPT" \
+            --source-batch "$NOTIFICATION_BATCH" --github-output "$GITHUB_OUTPUT"
       - name: Download the saved report archive
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: ai-review-batch-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.batch }}
+          name: ${{ steps.source.outputs.archive }}
           path: ${{ runner.temp }}/review-batch
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.source.outputs.run_id }}
       - name: Verify the archive and prepare the Feishu summary
         id: preview
         shell: bash
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          ARCHIVE_NAME: ai-review-batch-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.batch }}
+          ARCHIVE_NAME: ${{ steps.source.outputs.archive }}
+          SOURCE_RUN_ID: ${{ steps.source.outputs.run_id }}
         run: |
           set -euo pipefail
-          python3 -m pip install --disable-pip-version-check -q -r review/requirements.txt
           python3 review/notify_actions.py preview --manifest "$RUNNER_TEMP/review-batch/manifest.json" \
-            --artifact "$ARCHIVE_NAME" --run-id "$GITHUB_RUN_ID" --output "$RUNNER_TEMP/notify-preview" \
+            --artifact "$ARCHIVE_NAME" --run-id "$SOURCE_RUN_ID" --output "$RUNNER_TEMP/notify-preview" \
             --github-output "$GITHUB_OUTPUT"
       - name: Record the pending delivery before sending
         id: pending
-        if: vars.AI_REVIEW_SEND_FEISHU == 'true' && steps.preview.outputs.notify == 'true'
+        if: >-
+          steps.preview.outputs.notify == 'true' &&
+          ((inputs.notification_run && inputs.confirm_message_sha256) ||
+           (!inputs.notification_run && vars.AI_REVIEW_SEND_FEISHU == 'true'))
         shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DELIVERY: ${{ steps.source.outputs.delivery }}
+          NOTIFICATION_RUN: ${{ inputs.notification_run }}
+          CONFIRM_MESSAGE_SHA256: ${{ inputs.confirm_message_sha256 }}
+          PREVIOUS_DELIVERY_RUN: ${{ inputs.previous_delivery_run }}
         run: |
           set -euo pipefail
-          python3 - "$RUNNER_TEMP/notify-preview" "$RUNNER_TEMP/notification-pending.json" <<'PY'
-          import hashlib, json, sys
-          from pathlib import Path
-          root = Path(sys.argv[1])
-          summary = json.loads((root / 'summary.json').read_bytes())
-          message = json.loads((root / 'message.json').read_bytes())
-          payload = json.dumps(message, ensure_ascii=False, sort_keys=True, separators=(',', ':'), allow_nan=False).encode('utf-8')
-          pending = {'batch_id': summary['batch_id'], 'status': 'unknown', 'message_sha256': hashlib.sha256(payload).hexdigest()}
-          Path(sys.argv[2]).write_text(json.dumps(pending), encoding='utf-8')
-          PY
+          args=(--preview "$RUNNER_TEMP/notify-preview" --delivery "$DELIVERY" --output "$RUNNER_TEMP/notification-pending.json")
+          if [[ -n "$NOTIFICATION_RUN" ]]; then
+            args+=(--manual --expected-sha "$CONFIRM_MESSAGE_SHA256" --previous-run "$PREVIOUS_DELIVERY_RUN")
+          fi
+          python3 review/notify_actions.py authorize-delivery "${args[@]}"
       - name: Archive the pending delivery record
         if: steps.pending.outcome == 'success'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: ai-review-notification-pending-${{ matrix.batch }}
+          name: ${{ steps.source.outputs.delivery }}-${{ github.run_id }}-pending
           path: ${{ runner.temp }}/notification-pending.json
           if-no-files-found: error
           retention-days: 30
@@ -261,7 +307,7 @@ jobs:
         if: ${{ !cancelled() && (steps.send.outcome == 'success' || steps.send.outcome == 'failure') }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: ai-review-notification-receipt-${{ matrix.batch }}
+          name: ${{ steps.source.outputs.delivery }}-${{ github.run_id }}-receipt
           path: ${{ runner.temp }}/feishu-receipt.json
           if-no-files-found: error
           retention-days: 30

@@ -2,16 +2,19 @@
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import os
 import re
+import zipfile
 from pathlib import Path
 from urllib.parse import urlencode
 from urllib.request import Request, build_opener
 
 from feishu_summary import POLICIES, read_summary, rich_message
 from notify_feishu import deliver, read_destination
-from report import read_json, save_json
+from pi_runner import digest
+from report import canonical, read_json, save_json
 from storage import GitHubArtifactStore, NoRedirect
 
 
@@ -37,6 +40,80 @@ def select_range(args):
         raise ValueError("找不到本次运行已保存的范围归档")
     with Path(args.github_output).open("a", encoding="utf-8") as stream:
         print(f"name={candidates[max(candidates, key=int)]}", file=stream)
+    return 0
+
+
+def resolve_source(args):
+    """输出批次归档位置；仅通知时要求指定原审查运行、尝试和批次。"""
+    if args.source_run:
+        if (not re.fullmatch(r"[1-9][0-9]{0,18}", args.source_run)
+                or not re.fullmatch(r"[1-9][0-9]{0,5}", args.source_attempt)
+                or not re.fullmatch(r"[0-4]", args.source_batch)):
+            raise ValueError("仅通知要求有效的原运行 ID、尝试号及批次索引")
+        run_id, attempt, batch = int(args.source_run), int(args.source_attempt), int(args.source_batch)
+        store = GitHubArtifactStore(args.repository, token=os.environ["GITHUB_TOKEN"])
+        status, _, content = store._api(f"/actions/runs/{run_id}")
+        if status != 200:
+            raise ValueError(f"找不到原审查运行（HTTP {status}）")
+        run = json.loads(content)
+        if (run["path"].split("@", 1)[0] != ".github/workflows/ai-review.yml"
+                or run["head_repository"]["full_name"] != args.repository
+                or run["head_branch"] not in ("master", "codex/ai-review-e2e")
+                or run["status"] != "completed" or run["run_attempt"] < attempt):
+            raise ValueError("只能使用本仓库已结束的审查运行中的批次归档")
+    else:
+        run_id, attempt, batch = args.run_id, args.attempt, args.batch
+    with Path(args.github_output).open("a", encoding="utf-8") as stream:
+        print(f"run_id={run_id}", file=stream)
+        print(f"archive=ai-review-batch-{run_id}-{attempt}-{batch}", file=stream)
+        print(f"delivery=ai-review-delivery-{run_id}-{attempt}-{batch}", file=stream)
+    return 0
+
+
+def authorize_delivery(args):
+    """核对消息摘要和该批次最近的归档回执，准备本次发送的待确认记录。"""
+    root = Path(args.preview)
+    summary = read_json(root / "summary.json")
+    message = read_json(root / "message.json")
+    message_sha = digest(canonical(message))
+    if args.manual and args.expected_sha != message_sha:
+        raise ValueError("确认的摘要 SHA-256 与待发送消息不一致")
+    store = GitHubArtifactStore(summary["repository"], token=os.environ["GITHUB_TOKEN"])
+    history = {}
+    pattern = re.compile(re.escape(args.delivery) + r"-([1-9][0-9]*)-(pending|receipt)")
+    for item in store.list_artifacts():
+        match = pattern.fullmatch(item["name"])
+        if not match or item["expired"]:
+            continue
+        run, kind = int(match[1]), match[2]
+        if (item.get("workflow_run") or {}).get("id") != run:
+            raise ValueError("同名回执归档来自不同工作流运行")
+        records = history.setdefault(run, {})
+        if kind in records:
+            raise ValueError("通知回执归档不唯一")
+        records[kind] = item
+    if history:
+        previous = max(history)
+        records = history[previous]
+        is_final = "receipt" in records
+        item, filename = (records["receipt"], "feishu-receipt.json") if is_final else (records["pending"], "notification-pending.json")
+        with zipfile.ZipFile(io.BytesIO(store.download_archive(item))) as archive:
+            record = archive.getinfo(filename)
+            if record.file_size > 65536:
+                raise ValueError("通知回执大小超限")
+            receipt = json.loads(archive.read(record))
+        previous_state = receipt["status"]
+        allowed = ("sent", "failed", "unknown") if is_final else ("unknown",)
+        if receipt["batch_id"] != summary["batch_id"] or previous_state not in allowed:
+            raise ValueError("原回执与指定批次不符")
+        if previous_state == "sent":
+            raise ValueError("该批次已有成功回执")
+        if not args.manual or args.previous_run != str(previous) or receipt["message_sha256"] != message_sha:
+            raise ValueError(f"上次投递状态 {previous_state}，补发须确认运行 {previous} 和相同消息摘要")
+    elif args.previous_run:
+        raise ValueError("找不到指定的上次投递回执")
+    save_json(args.output, {"batch_id": summary["batch_id"], "status": "unknown",
+                            "message_sha256": message_sha, "previous_delivery_run": args.previous_run or None})
     return 0
 
 
@@ -69,6 +146,11 @@ def preview(args):
     save_json(output / "message.json", message)
     with Path(args.github_output).open("a", encoding="utf-8") as stream:
         print(f"notify={str(summary['should_notify']).lower()}", file=stream)
+    message_sha = digest(canonical(message))
+    if step_summary := os.environ.get("GITHUB_STEP_SUMMARY"):
+        with Path(step_summary).open("a", encoding="utf-8") as stream:
+            print(f"Batch `{summary['batch_id']}` · [Report]({link})", file=stream)
+            print(f"\nMessage SHA-256 `{message_sha}`", file=stream)
     return 0
 
 
@@ -105,6 +187,21 @@ def main():
     for name in ("run-id", "attempt"):
         select.add_argument("--" + name, type=int, required=True)
     select.set_defaults(handler=select_range)
+    source = commands.add_parser("resolve-source")
+    for name in ("repository", "github-output"):
+        source.add_argument("--" + name, required=True)
+    for name in ("run-id", "attempt", "batch"):
+        source.add_argument("--" + name, type=int, required=True)
+    for name in ("source-run", "source-attempt", "source-batch"):
+        source.add_argument("--" + name, default="")
+    source.set_defaults(handler=resolve_source)
+    pending = commands.add_parser("authorize-delivery")
+    for name in ("preview", "delivery", "output"):
+        pending.add_argument("--" + name, required=True)
+    pending.add_argument("--manual", action="store_true")
+    pending.add_argument("--expected-sha", default="")
+    pending.add_argument("--previous-run", default="")
+    pending.set_defaults(handler=authorize_delivery)
     prepare = commands.add_parser("preview")
     for name in ("manifest", "artifact", "output", "github-output"):
         prepare.add_argument("--" + name, required=True)

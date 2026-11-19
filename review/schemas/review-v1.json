@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Commit review report v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "review_key", "attempt_id", "repository", "branch", "commit_sha", "base_sha", "commit_url", "run_url", "controller_revision", "validator_revision", "rules_sha256", "review_profile_sha256", "pi_version", "provider", "model", "review_status", "verdict", "summary", "findings", "open_questions", "limitations", "coverage", "model_review_complete", "started_at", "finished_at", "error", "notification_status"],
+  "properties": {
+    "schema_version": {"const": "review.v1"},
+    "review_key": {"$ref": "#/$defs/digest"},
+    "attempt_id": {"type": "string", "pattern": "^[a-f0-9]{32}$"},
+    "repository": {"type": "string", "maxLength": 210, "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"},
+    "branch": {"type": ["string", "null"], "minLength": 1, "maxLength": 255},
+    "commit_sha": {"$ref": "#/$defs/sha"},
+    "base_sha": {"anyOf": [{"$ref": "#/$defs/sha"}, {"type": "null"}]},
+    "commit_url": {"type": "string", "maxLength": 500},
+    "run_url": {"type": ["string", "null"], "maxLength": 500},
+    "controller_revision": {"type": "string", "pattern": "^(source-sha256:[a-f0-9]{64}|[a-f0-9]{40}|[a-f0-9]{64})$"},
+    "validator_revision": {"type": "string", "pattern": "^source-sha256:[a-f0-9]{64}$"},
+    "rules_sha256": {"$ref": "#/$defs/digest"},
+    "review_profile_sha256": {"$ref": "#/$defs/digest"},
+    "pi_version": {"enum": ["1.5.2", null]},
+    "provider": {"const": "deepseek"},
+    "model": {"type": "string", "minLength": 1, "maxLength": 150},
+    "review_status": {"enum": ["completed", "incomplete", "failed", "skipped"]},
+    "verdict": {"enum": ["issues_found", "no_findings", "inconclusive"]},
+    "summary": {"$ref": "#/$defs/text"},
+    "findings": {"$ref": "#/$defs/findings"},
+    "open_questions": {"$ref": "#/$defs/texts"},
+    "limitations": {"$ref": "#/$defs/texts"},
+    "model_review_complete": {"type": ["boolean", "null"]},
+    "coverage": {
+      "type": "object", "additionalProperties": false,
+      "required": ["unread_changed_files", "has_filtered_inputs", "has_snapshot_skips", "reference_validation"],
+      "properties": {
+        "unread_changed_files": {"type": "array", "maxItems": 2000, "items": {"type": "string", "maxLength": 1040}},
+        "has_filtered_inputs": {"type": "boolean"},
+        "has_snapshot_skips": {"type": "boolean"},
+        "reference_validation": {"enum": ["passed", "not_performed"]}
+      }
+    },
+    "started_at": {"type": "string", "maxLength": 40},
+    "finished_at": {"type": "string", "maxLength": 40},
+    "error": {"type": ["string", "null"], "maxLength": 100},
+    "notification_status": {"const": "not_requested"}
+  },
+  "allOf": [
+    {"if": {"properties": {"review_status": {"const": "completed"}}}, "then": {"properties": {"verdict": {"enum": ["issues_found", "no_findings"]}, "model_review_complete": {"const": true}, "error": {"type": "null"}}}},
+    {"if": {"properties": {"verdict": {"const": "issues_found"}}}, "then": {"properties": {"review_status": {"const": "completed"}, "findings": {"minItems": 1}}}},
+    {"if": {"properties": {"verdict": {"const": "no_findings"}}}, "then": {"properties": {"review_status": {"const": "completed"}, "findings": {"maxItems": 0}}}},
+    {"if": {"properties": {"review_status": {"enum": ["incomplete", "failed", "skipped"]}}}, "then": {"properties": {"verdict": {"const": "inconclusive"}}}},
+    {"if": {"properties": {"review_status": {"const": "failed"}}}, "then": {"properties": {"findings": {"maxItems": 0}, "error": {"type": "string", "minLength": 1}}}}
+  ],
+  "$defs": {
+    "sha": {"type": "string", "pattern": "^([a-f0-9]{40}|[a-f0-9]{64})$"},
+    "digest": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "text": {"type": "string", "minLength": 1, "maxLength": 4000, "pattern": "\\S"},
+    "texts": {"type": "array", "maxItems": 100, "items": {"$ref": "#/$defs/text"}},
+    "path": {"type": "string", "minLength": 1, "maxLength": 1024},
+    "line": {"type": "integer", "minimum": 1, "maximum": 1000000},
+    "anchor": {
+      "type": "object", "additionalProperties": false,
+      "required": ["revision", "file", "line", "side"],
+      "properties": {
+        "revision": {"enum": ["current", "parent"]}, "file": {"$ref": "#/$defs/path"},
+        "line": {"$ref": "#/$defs/line"}, "side": {"enum": ["right", "left"]}
+      }
+    },
+    "evidence": {
+      "type": "object", "additionalProperties": false,
+      "required": ["revision", "file", "start_line", "end_line", "explanation"],
+      "properties": {
+        "revision": {"enum": ["current", "parent"]}, "file": {"$ref": "#/$defs/path"},
+        "start_line": {"$ref": "#/$defs/line"}, "end_line": {"$ref": "#/$defs/line"},
+        "explanation": {"$ref": "#/$defs/text"}
+      }
+    },
+    "finding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "severity", "title", "trigger", "change_anchor", "evidence", "impact", "suggestion", "validation"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^F[0-9]{3,6}$"},
+        "severity": {"enum": ["P0", "P1", "P2"]},
+        "title": {"type": "string", "minLength": 1, "maxLength": 200, "pattern": "\\S"},
+        "trigger": {"$ref": "#/$defs/text"},
+        "change_anchor": {"$ref": "#/$defs/anchor"},
+        "evidence": {"type": "array", "minItems": 1, "maxItems": 20, "items": {"$ref": "#/$defs/evidence"}},
+        "impact": {"$ref": "#/$defs/text"}, "suggestion": {"$ref": "#/$defs/text"},
+        "validation": {
+          "type": "object", "additionalProperties": false, "required": ["kind", "executed", "note"],
+          "properties": {"kind": {"const": "static_analysis"}, "executed": {"const": false}, "note": {"$ref": "#/$defs/text"}}
+        }
+      }
+    },
+    "findings": {"type": "array", "maxItems": 50, "items": {"$ref": "#/$defs/finding"}},
+    "candidate": {
+      "type": "object", "additionalProperties": false,
+      "required": ["review_complete", "summary", "findings", "open_questions", "limitations"],
+      "properties": {
+        "review_complete": {"type": "boolean"}, "summary": {"$ref": "#/$defs/text"},
+        "findings": {"$ref": "#/$defs/findings"}, "open_questions": {"$ref": "#/$defs/texts"}, "limitations": {"allOf": [{"$ref": "#/$defs/texts"}], "maxItems": 94}
+      }
+    }
+  }
+}

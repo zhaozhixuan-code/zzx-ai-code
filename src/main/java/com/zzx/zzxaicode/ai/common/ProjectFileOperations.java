@@ -7,11 +7,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Stream;
 
 /** 框架无关文件能力，所有路径均限定为服务端 appId 对应的 Vue 项目。 */
 @Component
@@ -46,21 +44,38 @@ public class ProjectFileOperations {
      * @return 工具结果文本，预期参数和文件错误以“错误：”返回模型修正
      */
     public String execute(long appId, String name, Map<String, Object> arguments) {
+        if (appId <= 0 || arguments.containsKey("appId")) return "错误：应用 ID 只能由服务端提供";
+        return executeInWorkspace(outputRoot.resolve("vue_project_" + appId), name, arguments, false);
+    }
+
+    /**
+     * 在服务端确定的任务目录中执行文件工具，模型无法更换根路径。
+     * @param workspace 已校验的任务源码根目录
+     * @param name 工具名
+     * @param arguments 模型实参
+     * @param repair 是否为受限修复；修复只修改源码、公开资源及入口，禁止删除和改构建配置
+     * @return 实际工具结果；预期文件错误以文本反馈
+     */
+    public String executeInWorkspace(Path workspace, String name, Map<String, Object> arguments, boolean repair) {
         try {
-            if (appId <= 0 || arguments.containsKey("appId")) {
-                throw new IllegalArgumentException("应用 ID 只能由服务端提供");
-            }
             if ("exit".equals(name)) {
                 return "不要继续调用工具，可以输出最终结果了";
             }
             boolean directory = "readDir".equals(name);
             String relative = directory ? optionalString(arguments, "relativeDirPath") : required(arguments, "relativeFilePath");
-            Path path = resolve(appId, relative, directory);
+            Path path = resolve(workspace.toAbsolutePath().normalize(), relative, directory);
+            Path local = workspace.toAbsolutePath().normalize().relativize(path);
+            boolean write = Set.of("writeFile", "modifyFile", "deleteFile").contains(name);
+            if (repair && write && ("deleteFile".equals(name)
+                    || !(local.startsWith("src") || local.startsWith("public") || local.toString().equals("index.html")))) {
+                throw new IllegalArgumentException("修复只允许修改 src、public 和 index.html，不能删除或修改构建配置");
+            }
             return switch (name) {
-                case "readFile" -> Files.readString(path);
+                case "readFile" -> readFile(path);
                 case "readDir" -> readDirectory(path);
                 case "writeFile" -> {
                     String content = required(arguments, "content");
+                    if (repair && content.isBlank()) throw new IllegalArgumentException("修复不能清空文件");
                     Files.createDirectories(path.getParent());
                     Files.writeString(path, content);
                     yield "文件写入成功: " + relative;
@@ -75,7 +90,9 @@ public class ProjectFileOperations {
                     if (!original.contains(oldContent)) {
                         yield "警告：文件中未找到要替换的内容，文件未修改 - " + relative;
                     }
-                    Files.writeString(path, original.replace(oldContent, newContent));
+                    String modified = original.replace(oldContent, newContent);
+                    if (repair && modified.isBlank()) throw new IllegalArgumentException("修复不能清空文件");
+                    Files.writeString(path, modified);
                     yield "文件修改成功: " + relative;
                 }
                 case "deleteFile" -> {
@@ -99,13 +116,13 @@ public class ProjectFileOperations {
 
     /**
      * 校验相对路径及每一级已有祖先，拒绝绝对路径、跨目录及符号链接。
-     * @param appId 服务端应用 ID
+     * @param root 服务端源码根目录
      * @param relative 相对文件或目录路径
      * @param directory 是否允许空路径表示项目根目录
      * @return 已规范化的项目内绝对路径
      * @throws IOException 路径类型检查失败
      */
-    private Path resolve(long appId, String relative, boolean directory) throws IOException {
+    private Path resolve(Path root, String relative, boolean directory) throws IOException {
         if ((!directory && relative.isBlank()) || relative.contains("*") || relative.contains("?")) {
             throw new IllegalArgumentException("必须提供明确的单个相对路径");
         }
@@ -113,7 +130,6 @@ public class ProjectFileOperations {
         if (input.isAbsolute() || relative.matches("^[A-Za-z]:.*") || relative.startsWith("\\")) {
             throw new IllegalArgumentException("不允许绝对路径");
         }
-        Path root = outputRoot.resolve("vue_project_" + appId).normalize();
         Path target = root.resolve(input).normalize();
         // 规范化后再比较路径层级；文件工具还必须排除项目根目录自身。
         if (!target.startsWith(root) || (!directory && target.equals(root))) {
@@ -141,14 +157,29 @@ public class ProjectFileOperations {
         if (!Files.isDirectory(directory)) {
             throw new IllegalArgumentException("目录不存在或不是目录");
         }
-        try (Stream<Path> stream = Files.walk(directory)) {
-            List<String> files = stream.filter(Files::isRegularFile)
-                    .filter(path -> !Files.isSymbolicLink(path))
-                    .filter(path -> Stream.of(directory.relativize(path).toString().split("[/\\\\]"))
-                            .noneMatch(IGNORED::contains))
-                    .map(path -> directory.relativize(path).toString()).sorted().toList();
-            return "项目目录结构:\n" + String.join("\n", files);
-        }
+        StringBuilder result=new StringBuilder("项目目录结构:\n");
+        Files.walkFileTree(directory,new java.nio.file.SimpleFileVisitor<>() {
+            /** 不进入依赖与本轮产物，避免修复轮次遍历 npm 安装后的整个依赖树。 */
+            @Override public java.nio.file.FileVisitResult preVisitDirectory(Path dir,java.nio.file.attribute.BasicFileAttributes attrs) {
+                String name=dir.getFileName().toString();
+                return !dir.equals(directory) && (IGNORED.contains(name) || name.startsWith("quality-") || name.startsWith(".env"))
+                        ?java.nio.file.FileVisitResult.SKIP_SUBTREE:java.nio.file.FileVisitResult.CONTINUE;
+            }
+            /** 清单输出限制 65536 字符，超限明确截断，模型可继续读取具体子目录。 */
+            @Override public java.nio.file.FileVisitResult visitFile(Path file,java.nio.file.attribute.BasicFileAttributes attrs) {
+                String name=file.getFileName().toString();
+                if(attrs.isRegularFile() && !IGNORED.contains(name) && !name.startsWith("quality-") && !name.startsWith(".env")) result.append(directory.relativize(file)).append('\n');
+                if(result.length()>65536) { result.setLength(65536);result.append("\n清单已截断，请指定子目录读取");return java.nio.file.FileVisitResult.TERMINATE; }
+                return java.nio.file.FileVisitResult.CONTINUE;
+            }
+        });
+        return result.toString();
+    }
+
+    /** @param file 已完成路径校验的文件 @return 不超过 256KiB 的原文，超大文件明确拒绝而不返回半段源码 */
+    private String readFile(Path file) throws IOException {
+        if(Files.size(file)>256*1024) throw new IllegalArgumentException("文件超过 256KiB，请读取具体源码文件");
+        return Files.readString(file);
     }
 
     /**

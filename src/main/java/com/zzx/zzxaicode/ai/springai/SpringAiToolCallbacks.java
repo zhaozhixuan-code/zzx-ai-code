@@ -12,6 +12,8 @@ import org.springframework.stereotype.Component;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.nio.file.Path;
+import java.util.function.BiFunction;
 
 /** 为每次应用生成绑定 appId，工具 schema 中没有应用 ID 参数。 */
 @Component
@@ -46,6 +48,24 @@ public class SpringAiToolCallbacks {
     }
 
     /**
+     * 创建受服务端工作区约束的工具表；修复不声明删除工具，写入策略仍在文件层强制执行。
+     * @param workspace 服务端任务源码根目录
+     * @param repair 是否使用受限修复策略
+     * @return 本任务独立工具回调
+     */
+    public Map<String, ToolCallback> forWorkspace(Path workspace, boolean repair) {
+        Map<String, ToolCallback> tools = new LinkedHashMap<>();
+        BiFunction<String, Map<String, Object>, String> execute =
+                (name, arguments) -> files.executeInWorkspace(workspace, name, arguments, repair);
+        add(tools, execute, "readFile", "读取指定相对路径的文件内容", "relativeFilePath");
+        add(tools, execute, "readDir", "读取项目目录结构，空路径表示根目录", "relativeDirPath");
+        add(tools, execute, "writeFile", "写入文件到相对路径", "relativeFilePath", "content");
+        add(tools, execute, "modifyFile", "将文件中旧内容替换为新内容", "relativeFilePath", "oldContent", "newContent");
+        add(tools, execute, "exit", "结束工具调用，输出结果");
+        return tools;
+    }
+
+    /**
      * 以明确 schema 声明工具，不让框架反射出服务端上下文。
      * @param tools 本轮工具表
      * @param appId 已绑定的应用 ID
@@ -55,6 +75,19 @@ public class SpringAiToolCallbacks {
      * @throws IllegalStateException 工具 schema 无法序列化
      */
     private void add(Map<String, ToolCallback> tools, long appId, String name, String description, String... parameters) {
+        add(tools, (tool, arguments) -> files.execute(appId, tool, arguments), name, description, parameters);
+    }
+
+    /**
+     * 将声明与服务端文件执行绑定，根目录和任务标识不会出现在模型参数中。
+     * @param tools 当前任务工具表
+     * @param execute 服务端绑定的执行函数
+     * @param name 工具名称
+     * @param description 业务描述
+     * @param parameters 模型可填写的字符串参数
+     */
+    private void add(Map<String, ToolCallback> tools, BiFunction<String, Map<String, Object>, String> execute,
+                     String name, String description, String... parameters) {
         Map<String, Object> properties = new LinkedHashMap<>();
         for (String parameter : parameters) {
             properties.put(parameter, Map.of("type", "string", "description", parameter));
@@ -87,7 +120,7 @@ public class SpringAiToolCallbacks {
                         if (arguments == null || !properties.keySet().containsAll(arguments.keySet())) {
                             return "错误：工具参数包含未声明的字段";
                         }
-                        return files.execute(appId, name, arguments);
+                        return execute.apply(name, arguments);
                     } catch (JsonProcessingException e) {
                         // 这里只处理输入格式；执行期的非预期异常继续向上传播，不能伪装成 JSON 错误。
                         return "错误：工具参数必须是有效 JSON 对象";

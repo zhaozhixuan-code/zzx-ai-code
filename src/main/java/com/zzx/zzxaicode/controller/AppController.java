@@ -35,6 +35,9 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.io.File;
+import java.io.IOException;
+import com.zzx.zzxaicode.quality.QualityWorkflowService;
+import com.zzx.zzxaicode.quality.workspace.*;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +49,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/app")
+@lombok.extern.slf4j.Slf4j
 public class AppController {
 
     @Resource
@@ -57,6 +61,9 @@ public class AppController {
 
     @Resource
     private ProjectDownloadService projectDownloadService;
+
+    @Resource private QualityWorkspaceService qualityWorkspaces;
+    @Resource private QualityAppLock qualityAppLock;
 
 
     /**
@@ -83,7 +90,10 @@ public class AppController {
         // 4. 构建应用代码目录路径（生成目录，非部署目录）
         String codeGenType = app.getCodeGenType();
         String sourceDirName = codeGenType + "_" + appId;
-        String sourceDirPath = AppConstant.CODE_OUTPUT_ROOT_DIR + File.separator + sourceDirName;
+        // 下载与生成/部署共用应用资格；只读上一成功源码，不接触失败任务。
+        try (var lease=qualityAppLock.acquire(appId)) {
+        String sourceDirPath = "vue_project".equals(codeGenType)?qualityWorkspaces.publishedSource(appId).toString()
+                :AppConstant.CODE_OUTPUT_ROOT_DIR + File.separator + sourceDirName;
         // 5. 检查代码目录是否存在
         File sourceDir = new File(sourceDirPath);
         ThrowUtils.throwIf(!sourceDir.exists() || !sourceDir.isDirectory(),
@@ -92,6 +102,7 @@ public class AppController {
         String downloadFileName = String.valueOf(appId);
         // 7. 调用通用下载服务
         projectDownloadService.downloadProjectAsZip(sourceDirPath, downloadFileName, response);
+        } catch(IOException error) { throw new BusinessException(ErrorCode.SYSTEM_ERROR,"读取成功源码失败"); }
     }
 
 
@@ -133,6 +144,10 @@ public class AppController {
         User loginUser = userService.getLoginUser(request);
         Flux<String> contentFlux = appService.chatToGenCode(appId, message, loginUser);
         return contentFlux.map(chunk -> {
+                    if(chunk.startsWith(QualityWorkflowService.EVENT_PREFIX)) {
+                        return ServerSentEvent.<String>builder().event("quality")
+                                .data(chunk.substring(QualityWorkflowService.EVENT_PREFIX.length())).build();
+                    }
                     // 把内容包装成JSON对象
                     Map<String, String> wrapper = Map.of("d", chunk);
                     String jsonData = JSONUtil.toJsonStr(wrapper);
@@ -145,7 +160,15 @@ public class AppController {
                                 .event("done")
                                 .data("")
                                 .build()
-                ));
+                ))
+                // 异步流错误不能依赖 Servlet 调用线程的异常处理器；错误事件后绝不追加 done。
+                .onErrorResume(error->{
+                    log.warn("生成 SSE 失败，appId={}",appId,error);
+                    int code=error instanceof BusinessException business?business.getCode():ErrorCode.SYSTEM_ERROR.getCode();
+                    String reason=error instanceof BusinessException?error.getMessage():"生成执行异常，请查看质量报告";
+                    return Flux.just(ServerSentEvent.<String>builder().event("business-error")
+                            .data(JSONUtil.toJsonStr(Map.of("code",code,"message",reason))).build());
+                });
     }
 
 

@@ -5,6 +5,7 @@ import com.zzx.zzxaicode.constants.AppConstant;
 import com.zzx.zzxaicode.controller.WorkflowSseController;
 import com.zzx.zzxaicode.core.AiCodeGeneratorFacade;
 import com.zzx.zzxaicode.core.builder.VueProjectBuilder;
+import com.zzx.zzxaicode.quality.QualityWorkflowService;
 import com.zzx.zzxaicode.core.handler.JsonMessageStreamHandler;
 import com.zzx.zzxaicode.core.handler.SimpleTextStreamHandler;
 import com.zzx.zzxaicode.exception.BusinessException;
@@ -42,7 +43,7 @@ class SpringAiIntegrationBoundaryTest {
     @Test
     void facadeSavesHtmlAndMultiFilesAndRejectsInvalidOutput() throws Exception {
         var generator = mock(AiCodeGenerator.class);
-        var facade = new AiCodeGeneratorFacade(generator, mock(VueProjectBuilder.class));
+        var facade = new AiCodeGeneratorFacade(generator, mock(QualityWorkflowService.class));
         long appId = System.nanoTime();
         when(generator.stream(appId, "page", CodeGenTypeEnum.HTML)).thenReturn(Flux.just("```html\n", "<h1>ok</h1>\n```"));
         facade.generateAndSaveCodeStream("page", CodeGenTypeEnum.HTML, appId).blockLast(Duration.ofSeconds(3));
@@ -75,15 +76,16 @@ class SpringAiIntegrationBoundaryTest {
     @Test
     void vueBuildFailureDoesNotCompleteSuccessfully() {
         var generator = mock(AiCodeGenerator.class);
-        var builder = mock(VueProjectBuilder.class);
-        var facade = new AiCodeGeneratorFacade(generator, builder);
+        var quality = mock(QualityWorkflowService.class);
+        var facade = new AiCodeGeneratorFacade(generator, quality);
         when(generator.stream(11, "vue", CodeGenTypeEnum.VUE_PROJECT)).thenReturn(Flux.just("event"));
-        when(builder.buildProject(anyString())).thenReturn(false);
-        assertThrows(BusinessException.class, () -> facade.generateAndSaveCodeStream("vue", CodeGenTypeEnum.VUE_PROJECT, 11L)
+        when(quality.stream(11L,1L,"vue")).thenReturn(Flux.error(new BusinessException(com.zzx.zzxaicode.exception.ErrorCode.OPERATION_ERROR,"检查失败")));
+        assertThrows(BusinessException.class, () -> facade.generateAndSaveCodeStream("vue", CodeGenTypeEnum.VUE_PROJECT, 11L,1L)
                 .blockLast(Duration.ofSeconds(3)));
-        verify(builder).buildProject(AppConstant.CODE_OUTPUT_ROOT_DIR + java.io.File.separator + "vue_project_11");
-        when(builder.buildProject(anyString())).thenReturn(true);
-        assertDoesNotThrow(() -> facade.generateAndSaveCodeStream("vue", CodeGenTypeEnum.VUE_PROJECT, 11L)
+        verify(quality).stream(11L,1L,"vue");
+        verifyNoInteractions(generator);
+        when(quality.stream(11L,1L,"vue")).thenReturn(Flux.just("{\"type\":\"ai_response\",\"data\":\"ready\"}"));
+        assertDoesNotThrow(() -> facade.generateAndSaveCodeStream("vue", CodeGenTypeEnum.VUE_PROJECT, 11L,1L)
                 .blockLast(Duration.ofSeconds(3)));
     }
 

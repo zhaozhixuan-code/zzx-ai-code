@@ -35,6 +35,28 @@ import static org.mockito.Mockito.*;
 class SpringAiProtocolTest {
     private static final ObjectMapper JSON = new ObjectMapper();
 
+    /** 工作区会话复用真实协议适配，模型完成不自动保存，成功确认后才能保存。 */
+    @Test
+    void workspaceSessionDefersConversationSaveUntilConfirmation() throws Exception {
+        try (var server = new StubServer((request, index) -> textStream("工作区生成完成", "stop"))) {
+            var settings = new SpringAiProperties();
+            var repository = mock(SpringAiConversationRepository.class);
+            when(repository.load(11, "创建页面")).thenReturn(new ArrayList<>(List.of(new UserMessage("创建页面"))));
+            var callbacks = mock(SpringAiToolCallbacks.class);
+            when(callbacks.forWorkspace(any(), eq(false))).thenReturn(Map.of());
+            ChatModel model = model(connection(server.url()), settings);
+            var generator = new SpringAiCodeGenerator(model, model, new SpringAiPromptLoader(), repository, callbacks, settings);
+            var session = generator.openWorkspaceSession(11, "2", "创建页面", java.nio.file.Path.of("task/source"));
+            assertFalse(session.stream(null, 3, Duration.ofSeconds(5)).collectList().block().isEmpty());
+            verify(repository, never()).save(anyLong(), anyList());
+            session.save();
+            verify(repository).save(eq(11L), anyList());
+            session.cancelAndAwaitFiles();
+            assertThrows(java.util.concurrent.CancellationException.class,
+                    () -> session.stream(null, 3, Duration.ofSeconds(5)).blockLast());
+        }
+    }
+
     /** 默认路径、角色路径、请求头、模型选项和同步响应均使用配置值。 */
     @Test
     void syncAndStreamSupportConfiguredEndpointsAndHeaders() throws Exception {

@@ -128,9 +128,7 @@ public class GlobalExceptionHandler {
                 String sseData = "event: business-error\ndata: " + errorJson + "\n\n";
                 response.getWriter().write(sseData);
                 response.getWriter().flush();
-                // 发送结束事件
-                response.getWriter().write("event: done\ndata: {}\n\n");
-                response.getWriter().flush();
+                // 业务失败只发送错误；done 专用于成功产物，不能在错误后追加。
                 // 表示已处理SSE请求
                 return true;
             } catch (IOException ioException) {

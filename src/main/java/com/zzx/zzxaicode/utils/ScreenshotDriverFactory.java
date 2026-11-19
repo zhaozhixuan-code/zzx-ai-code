@@ -38,6 +38,20 @@ public class ScreenshotDriverFactory {
      * @return 新建会话；调用方必须在 finally 中 quit
      */
     public WebDriver createDriver() {
+        return createDriver(null,null);
+    }
+
+    /**
+     * 质量检查使用独立浏览器和只允许当前候选的本地代理，强制启用 Chrome 自身沙盒。
+     * @param proxy 服务端临时 loopback 代理地址 @param timeout 当前阶段剩余预算
+     * @return 独立 Chrome 会话；调用方负责 quit，不能复用用户浏览器
+     */
+    public ChromeDriver createQualityDriver(String proxy,Duration timeout) {
+        return (ChromeDriver)createDriver(proxy,timeout);
+    }
+
+    /** @param proxy 可空，空时使用普通截图配置 @param timeout 可空的质量检查预算 @return 新建会话 */
+    private WebDriver createDriver(String proxy,Duration timeout) {
         // 先检查显式浏览器路径，避免错误配置触发无意义的驱动版本探测和下载。
         File browser = properties.getBrowserBinary() == null || properties.getBrowserBinary().isBlank()
                 ? null : requireExecutable(properties.getBrowserBinary(), "浏览器");
@@ -45,7 +59,10 @@ public class ScreenshotDriverFactory {
         ChromeOptions options = new ChromeOptions();
         options.addArguments("--headless=new", "--disable-gpu", "--disable-dev-shm-usage",
                 "--window-size=1600,900", "--disable-extensions");
-        if (properties.isNoSandbox()) {
+        if (proxy!=null) {
+            options.addArguments("--proxy-server="+proxy,"--proxy-bypass-list=<-loopback>","--disable-quic",
+                    "--disable-background-networking","--force-webrtc-ip-handling-policy=disable_non_proxied_udp");
+        } else if (properties.isNoSandbox()) {
             options.addArguments("--no-sandbox");
         }
         if (browser != null) {
@@ -61,6 +78,7 @@ public class ScreenshotDriverFactory {
         if (commandTimeout.compareTo(properties.getDriverTimeout()) < 0) {
             commandTimeout = properties.getDriverTimeout();
         }
+        if(timeout!=null) commandTimeout=timeout;
         ClientConfig client = ClientConfig.defaultConfig()
                 .connectionTimeout(properties.getDriverTimeout()).readTimeout(commandTimeout.plusSeconds(5));
         try {

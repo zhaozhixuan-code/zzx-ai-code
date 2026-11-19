@@ -72,6 +72,19 @@ app:
     vue:
       model: ${AI_VUE_MODEL:}
       temperature: 0.1
+  # Vue 工程真实质量检查的预算契约；首次检查不计入修复次数。
+  quality:
+    instance-id: ${QUALITY_INSTANCE_ID:local}
+    build-image: ${QUALITY_BUILD_IMAGE:node:22.16.0-bookworm-slim}
+    build-user: ${QUALITY_BUILD_USER:1000:1000}
+    install-network: ${QUALITY_INSTALL_NETWORK:bridge}
+    enabled: ${QUALITY_CHECK_ENABLED:true}
+    max-repair-attempts: ${QUALITY_MAX_REPAIR_ATTEMPTS:2}
+    max-model-tool-rounds: ${QUALITY_MAX_MODEL_TOOL_ROUNDS:50}
+    overall-timeout: ${QUALITY_OVERALL_TIMEOUT:30m}
+    model-timeout: ${QUALITY_MODEL_TIMEOUT:3m}
+    build-timeout: ${QUALITY_BUILD_TIMEOUT:10m}
+    browser-timeout: ${QUALITY_BROWSER_TIMEOUT:2m}
 
 # springdoc-openapi
 springdoc:

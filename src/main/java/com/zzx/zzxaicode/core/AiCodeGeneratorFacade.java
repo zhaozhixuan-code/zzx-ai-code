@@ -1,8 +1,8 @@
 package com.zzx.zzxaicode.core;
 
 import com.zzx.zzxaicode.ai.common.AiCodeGenerator;
-import com.zzx.zzxaicode.constants.AppConstant;
-import com.zzx.zzxaicode.core.builder.VueProjectBuilder;
+import com.zzx.zzxaicode.quality.QualityWorkflowService;
+import com.zzx.zzxaicode.monitor.MonitorContextHolder;
 import com.zzx.zzxaicode.core.parser.GeneratedCodeResultParser;
 import com.zzx.zzxaicode.core.saver.CodeFileSaverExecutor;
 import com.zzx.zzxaicode.exception.BusinessException;
@@ -19,16 +19,16 @@ import java.io.File;
 @Service
 public class AiCodeGeneratorFacade {
     private final AiCodeGenerator generator;
-    private final VueProjectBuilder vueProjectBuilder;
+    private final QualityWorkflowService quality;
 
     /**
-     * 注入项目生成契约与现有 Vue 构建器。
+     * 注入普通模式生成契约与 Vue 质量编排。
      * @param generator 主业务生成适配
-     * @param vueProjectBuilder Vue 工程构建能力
+     * @param quality Vue 质量检查及受限修复闭环
      */
-    public AiCodeGeneratorFacade(AiCodeGenerator generator, VueProjectBuilder vueProjectBuilder) {
+    public AiCodeGeneratorFacade(AiCodeGenerator generator, QualityWorkflowService quality) {
         this.generator = generator;
-        this.vueProjectBuilder = vueProjectBuilder;
+        this.quality = quality;
     }
 
     /**
@@ -46,7 +46,7 @@ public class AiCodeGeneratorFacade {
     }
 
     /**
-     * 普通模式结束后解析保存；Vue 工具结束后同步等待构建成功再完成响应。
+     * 兼容已有内部调用方；Vue 从调用线程取得用户标签后进入质量编排。
      * @param userMessage 本轮用户需求
      * @param codeGenType 生成类型
      * @param appId 服务端应用 ID
@@ -54,20 +54,23 @@ public class AiCodeGeneratorFacade {
      * @throws BusinessException 类型为空；订阅后的模型、解析、保存或构建错误通过流传播
      */
     public Flux<String> generateAndSaveCodeStream(String userMessage, CodeGenTypeEnum codeGenType, Long appId) {
+        var context=MonitorContextHolder.getContext();
+        long userId=context==null || context.getUserId()==null?0:Long.parseLong(context.getUserId());
+        return generateAndSaveCodeStream(userMessage,codeGenType,appId,userId);
+    }
+
+    /**
+     * Vue 全程交给质量工作流，普通模式保持既有解析保存；用户身份必须来自鉴权入口。
+     * @param userMessage 原始需求 @param codeGenType 生成类型 @param appId 服务端应用 @param userId 已鉴权用户
+     * @return 实时流，所有产物及报告确认成功后才正常结束
+     */
+    public Flux<String> generateAndSaveCodeStream(String userMessage, CodeGenTypeEnum codeGenType, Long appId,long userId) {
         validateType(codeGenType);
+        if(codeGenType==CodeGenTypeEnum.VUE_PROJECT) return quality.stream(appId,userId,userMessage);
         // 组装时捕获服务层的监控标签；每次订阅的生成状态仍由生成适配器独立创建。
         Flux<String> stream = generator.stream(appId, userMessage, codeGenType);
         return Flux.defer(() -> {
             StringBuilder content = new StringBuilder();
-            if (codeGenType == CodeGenTypeEnum.VUE_PROJECT) {
-                // Vue 源文件已由工具逐步写入；必须等最终续答结束并构建成功，才能完成上游流。
-                return stream.concatWith(Mono.fromRunnable(() -> {
-                    String projectPath = AppConstant.CODE_OUTPUT_ROOT_DIR + File.separator + "vue_project_" + appId;
-                    if (!vueProjectBuilder.buildProject(projectPath)) {
-                        throw new BusinessException(ErrorCode.OPERATION_ERROR, "Vue 项目构建失败，无法预览");
-                    }
-                }).subscribeOn(Schedulers.boundedElastic()).thenMany(Flux.empty()));
-            }
             // 页面收到的是实时片段，解析器需要完整结果；保存必须在流完成前执行，失败向外传播。
             return stream.doOnNext(content::append).concatWith(Mono.fromRunnable(() -> {
                 Object parsed = GeneratedCodeResultParser.parse(content.toString(), codeGenType);

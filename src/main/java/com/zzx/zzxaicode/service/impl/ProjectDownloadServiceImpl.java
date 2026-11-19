@@ -89,7 +89,7 @@ public class ProjectDownloadServiceImpl implements ProjectDownloadService {
         for (Path part : relativePath) {
             String partName = part.toString();
             // 检查是否在忽略名称列表中
-            if (IGNORED_NAMES.contains(partName)) {
+            if (IGNORED_NAMES.contains(partName) || partName.startsWith("quality-") || partName.startsWith(".env")) {
                 return false;
             }
             // 检查是否在忽略扩展名列表中
@@ -97,6 +97,8 @@ public class ProjectDownloadServiceImpl implements ProjectDownloadService {
                 return false;
             }
         }
+        try { com.zzx.zzxaicode.quality.workspace.QualityWorkspaceService.requireNoLink(pullPath); }
+        catch(IOException error) { return false; }
         return true;
     }
 }

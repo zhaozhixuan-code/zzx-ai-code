@@ -16,6 +16,9 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.HandlerMapping;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.*;
+import com.zzx.zzxaicode.quality.workspace.QualityWorkspaceService;
 
 @RestController
 @RequestMapping("/static")
@@ -23,6 +26,10 @@ public class StaticResourceController {
 
     // 应用生成根目录（用于浏览）
     private static final String PREVIEW_ROOT_DIR = AppConstant.CODE_OUTPUT_ROOT_DIR;
+    private final QualityWorkspaceService workspaces;
+
+    /** @param workspaces 成功产物指针解析器，失败任务不会公开到静态资源目录 */
+    public StaticResourceController(QualityWorkspaceService workspaces) { this.workspaces=workspaces; }
 
     /**
      * 提供静态资源访问，支持目录重定向
@@ -33,6 +40,7 @@ public class StaticResourceController {
             @PathVariable String deployKey,
             HttpServletRequest request) {
         try {
+            if(!deployKey.matches("(?:html|multi-file|vue_project)_[1-9][0-9]*")) return ResponseEntity.notFound().build();
             // 获取资源路径
             String resourcePath = (String) request.getAttribute(HandlerMapping.PATH_WITHIN_HANDLER_MAPPING_ATTRIBUTE);
             resourcePath = resourcePath.substring(("/static/" + deployKey).length());
@@ -47,18 +55,27 @@ public class StaticResourceController {
                 resourcePath = "/index.html";
             }
             // 构建文件路径
-            String filePath = PREVIEW_ROOT_DIR + "/" + deployKey + resourcePath;
-            File file = new File(filePath);
+            boolean vue=deployKey.startsWith("vue_project_");
+            if(vue && !resourcePath.startsWith("/dist/")) return ResponseEntity.notFound().build();
+            Path root=vue?workspaces.publishedSource(Long.parseLong(deployKey.substring("vue_project_".length())))
+                    :Path.of(PREVIEW_ROOT_DIR,deployKey).toAbsolutePath().normalize();
+            Path file=root.resolve(resourcePath.substring(1)).normalize();
+            if(!file.startsWith(root)) return ResponseEntity.notFound().build();
+            for(Path part:root.relativize(file)) if(part.toString().startsWith(".") || part.toString().startsWith("quality-")) return ResponseEntity.notFound().build();
+            QualityWorkspaceService.requireNoLink(file);
+            String filePath=file.toString();
             // 检查文件是否存在
-            if (!file.exists()) {
+            if (!Files.isRegularFile(file)) {
                 return ResponseEntity.notFound().build();
             }
             // 返回文件资源
             Resource resource = new FileSystemResource(file);
             return ResponseEntity.ok()
+                    .header("Cache-Control","no-store")
+                    .header("X-Content-Type-Options","nosniff")
                     .header("Content-Type", getContentTypeWithCharset(filePath))
                     .body(resource);
-        } catch (Exception e) {
+        } catch (IOException | IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }

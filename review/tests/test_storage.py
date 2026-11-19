@@ -196,7 +196,7 @@ class ArtifactTests(StorageFixture):
         view = report.InputView.load(self.input)
         baseline = report.review_identity(view, repository="owner/repository", branch=None, control_directory=report.ROOT)
         self.assertEqual(baseline["review_key"], result["review_key"])
-        for changes in ({"model": "another-model"}, {"rules_sha256": "0" * 64}, {"branch": "another-branch"}):
+        for changes in ({"model": "deepseek-v4-pro"}, {"rules_sha256": "0" * 64}, {"branch": "another-branch"}):
             options = {"repository": "owner/repository", "branch": None, "control_directory": report.ROOT, **changes}
             changed = report.review_identity(view, **options)
             self.assertIsNone(store.find("owner/repository", changed["review_key"]))

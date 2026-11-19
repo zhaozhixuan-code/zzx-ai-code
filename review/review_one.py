@@ -8,12 +8,12 @@ import re
 import tempfile
 import time
 
-from pi_runner import load_input, parse_json, run_review, utc_now
+from pi_runner import DEFAULT_MODEL, load_input, parse_json, run_review, utc_now
 from report import ROOT, assess_attempt, build_report, save_json, write_report
 
 
 def run_one(input_directory, output_root, *, repository, branch=None, run_url=None, timeout=480,
-            model="deepseek-v4-pro", pi_command=None):
+            model=DEFAULT_MODEL, pi_command=None):
     """审查已过滤输入；timeout 为包含预检、两次模型输出和校验的总秒数。"""
     if timeout <= 0:
         raise ValueError("总超时必须大于 0")
@@ -92,7 +92,7 @@ def main():
     parser.add_argument("--branch")
     parser.add_argument("--run-url")
     parser.add_argument("--timeout", type=float, default=480)
-    parser.add_argument("--model", default="deepseek-v4-pro")
+    parser.add_argument("--model", default=DEFAULT_MODEL)
     args = parser.parse_args()
     batch, report = run_one(args.input, args.output_root, repository=args.repository, branch=args.branch,
         run_url=args.run_url, timeout=args.timeout, model=args.model)

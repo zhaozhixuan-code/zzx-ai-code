@@ -14,6 +14,7 @@ import tempfile
 import time
 from datetime import datetime, timezone
 
+DEFAULT_MODEL = "deepseek-flash"
 TOOLS = ["review_list", "review_read", "review_search"]
 MAX_OUTPUT = 2 * 1024 * 1024
 ROOT = Path(__file__).resolve().parent
@@ -187,7 +188,7 @@ def error_kind(text):
     return "pi_failed"
 
 
-def run_review(input_directory, output_root, *, timeout=480, label="review", model="deepseek-v4-pro",
+def run_review(input_directory, output_root, *, timeout=480, label="review", model=DEFAULT_MODEL,
                pi_command=None, rules=None, correction=None, review_budget_seconds=None):
     """运行独立审查；timeout 为本次剩余秒数，correction 为有界输出纠正材料，返回脱敏记录。"""
     if os.name != "posix":
@@ -334,7 +335,7 @@ def main():
     parser.add_argument("--output-root", required=True)
     parser.add_argument("--timeout", type=float, default=480)
     parser.add_argument("--label", default="review")
-    parser.add_argument("--model", default="deepseek-v4-pro")
+    parser.add_argument("--model", default=DEFAULT_MODEL)
     args = parser.parse_args()
     result = run_review(args.input, args.output_root, timeout=args.timeout, label=args.label, model=args.model)
     print(json.dumps(result, ensure_ascii=False, indent=2))

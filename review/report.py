@@ -15,7 +15,7 @@ import uuid
 
 from jsonschema import Draft202012Validator
 
-from pi_runner import TOOLS, digest, git_lines, load_input, parse_json, utc_now
+from pi_runner import DEFAULT_MODEL, TOOLS, digest, git_lines, load_input, parse_json, utc_now
 
 ROOT = Path(__file__).resolve().parent
 SCHEMA = parse_json((ROOT / "schemas/review-v1.json").read_text(encoding="utf-8"))
@@ -256,7 +256,7 @@ def review_key_for(identity):
         "schema_version", "controller_revision", "rules_sha256", "review_profile_sha256", "pi_version")}))
 
 
-def review_identity(view, *, repository, branch, control_directory, model="deepseek-v4-pro", provider="deepseek",
+def review_identity(view, *, repository, branch, control_directory, model=DEFAULT_MODEL, provider="deepseek",
                     pi_version="1.5.2", budget=480, rules_sha256=None, tools_sha256=None, commit_sha=None, base_sha=None):
     """用过滤输入和已选配置预计算完整身份；失败任务的未知版本可为 null，不调用模型。"""
     validate_context(repository, branch)

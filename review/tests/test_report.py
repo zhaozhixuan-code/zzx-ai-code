@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import report
-from pi_runner import digest, git_lines, utc_now
+from pi_runner import DEFAULT_MODEL, digest, git_lines, utc_now
 from review_one import run_one
 
 
@@ -82,7 +82,7 @@ class ReportFixture(unittest.TestCase):
         (job / "tool-events.jsonl").write_text("".join(json.dumps(event) + "\n" for event in events), encoding="utf-8")
         execution = {"stage": "failed" if failure else "awaiting_report_validation", "commit_sha": self.metadata["commit_sha"],
             "base_sha": self.metadata["base_sha"], "input_directory": str(self.input), "started_at": utc_now(), "finished_at": utc_now(),
-            "provider": "deepseek", "model": "deepseek-v4-pro", "pi_version": "1.5.2", "pi_returncode": 143 if failure else 0,
+            "provider": "deepseek", "model": DEFAULT_MODEL, "pi_version": "1.5.2", "pi_returncode": 143 if failure else 0,
             "rules_sha256": digest((report.ROOT / "REVIEW.md").read_bytes()), "tools_sha256": digest((report.ROOT / "review-tools.ts").read_bytes()),
             "diff_sha256": digest((self.input / "commit.diff").read_bytes())}
         if failure:

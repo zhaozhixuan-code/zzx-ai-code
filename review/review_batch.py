@@ -9,7 +9,7 @@ import re
 import tempfile
 import uuid
 
-from pi_runner import digest, parse_json, utc_now
+from pi_runner import DEFAULT_MODEL, digest, parse_json, utc_now
 from report import InputView, ROOT, read_json, review_identity, save_json, validate_context
 from review_one import run_one
 from storage import (FILES, GitHubArtifactStore, LocalArtifactStore, StorageError,
@@ -76,7 +76,7 @@ def record_files(batch, directory):
 
 def run_batch(plan_file, output_root, store_root, *, force_review=False, retry_failed=None,
               github_store=None, allow_duplicate_on_storage_error=False, retention_days=30,
-              timeout=480, model="deepseek-v4-pro", run_url=None, runner=None):
+              timeout=480, model=DEFAULT_MODEL, run_url=None, runner=None):
     """逐提交执行计划；默认查询失败停止，显式放行才允许在存储异常后重新调用模型。"""
     if force_review and retry_failed:
         raise ValueError("强制重审和失败补跑不能同时启用")
@@ -196,7 +196,7 @@ def main():
     parser.add_argument("--allow-duplicate-on-storage-error", action="store_true")
     parser.add_argument("--retention-days", type=int, default=30)
     parser.add_argument("--timeout", type=float, default=480)
-    parser.add_argument("--model", default="deepseek-v4-pro")
+    parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--run-url")
     args = parser.parse_args()
     plan = load_plan(args.plan)

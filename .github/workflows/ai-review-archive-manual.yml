@@ -1,0 +1,84 @@
+name: AI review archive (manual)
+
+on:
+  workflow_dispatch:
+
+# This first workflow is intentionally manual. It verifies the real artifact
+# handoff before any push-triggered review or Feishu notification is enabled.
+permissions:
+  actions: write
+
+jobs:
+  archive:
+    name: Upload and download one saved review artifact
+    runs-on: [self-hosted, linux, x64, ai-commit-review]
+    timeout-minutes: 10
+    steps:
+      - name: Validate the prepared report package
+        id: metadata
+        shell: bash
+        env:
+          INPUT_ROOT: /var/lib/ai-review-runner/report-input
+        run: |
+          set -euo pipefail
+          test -d "$INPUT_ROOT"
+          python3 - "$INPUT_ROOT" "$GITHUB_OUTPUT" <<'PY'
+          import json
+          import re
+          import sys
+          from pathlib import Path
+
+          root = Path(sys.argv[1])
+          output = Path(sys.argv[2])
+          required = {"artifact.json", "review.json", "review.md", "execution.json"}
+          files = {item.name for item in root.iterdir() if item.is_file()}
+          if files != required:
+              raise SystemExit("report-input must contain exactly the four artifact files")
+          index = json.loads((root / "artifact.json").read_text(encoding="utf-8"))
+          if index.get("schema_version") != "review-artifact.v1":
+              raise SystemExit("unexpected artifact schema")
+          if index.get("review_status") != "completed":
+              raise SystemExit("manual archive smoke test requires a completed report")
+          repository = index.get("repository")
+          review_key = index.get("review_key")
+          attempt_id = index.get("attempt_id")
+          if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository or ""):
+              raise SystemExit("invalid repository in artifact index")
+          if not re.fullmatch(r"[a-f0-9]{64}", review_key or ""):
+              raise SystemExit("invalid review key in artifact index")
+          if not re.fullmatch(r"[a-f0-9]{32}", attempt_id or ""):
+              raise SystemExit("invalid attempt id in artifact index")
+          artifact_name = f"ai-review-v1-{review_key}-{attempt_id}"
+          with output.open("a", encoding="utf-8") as stream:
+              stream.write(f"artifact_name={artifact_name}\n")
+              stream.write(f"repository={repository}\n")
+              stream.write(f"review_key={review_key}\n")
+          print(f"validated completed artifact {artifact_name}")
+          PY
+
+      - name: Upload the saved report artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ steps.metadata.outputs.artifact_name }}
+          path: /var/lib/ai-review-runner/report-input/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Download the artifact from this run
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ${{ steps.metadata.outputs.artifact_name }}
+          path: ${{ runner.temp }}/ai-review-downloaded
+
+      - name: Verify downloaded files byte-for-byte
+        shell: bash
+        env:
+          INPUT_ROOT: /var/lib/ai-review-runner/report-input
+          DOWNLOADED_ROOT: ${{ runner.temp }}/ai-review-downloaded
+        run: |
+          set -euo pipefail
+          test "$(find "$DOWNLOADED_ROOT" -maxdepth 1 -type f | wc -l)" -eq 4
+          for name in artifact.json review.json review.md execution.json; do
+            cmp -- "$INPUT_ROOT/$name" "$DOWNLOADED_ROOT/$name"
+          done
+          echo "artifact upload and download matched all four files"

@@ -40,15 +40,41 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '22.22.1'
-      - name: Install review dependencies
+      - name: Prepare cached review dependencies
         timeout-minutes: 15
         shell: bash
         run: |
           set -euo pipefail
-          python_deps=$(mktemp -d "$RUNNER_TEMP/ai-review-python.XXXXXX")
-          python3 -m pip install --disable-pip-version-check --target "$python_deps" -q -r review/requirements.txt
+          umask 077
+          cache_root="$HOME/.cache/ai-commit-review/dependencies"
+          # Store dependencies outside the checkout and key them by the lock files and runtime.
+          python_key=$({ python3 -c 'import sys, sysconfig; print(sys.implementation.name, sys.version.split()[0], sysconfig.get_platform())'; sha256sum review/requirements.txt; } | sha256sum | cut -d ' ' -f 1)
+          node_key=$({ node -p '[process.version, process.platform, process.arch].join(" ")'; sha256sum review/package.json review/package-lock.json; } | sha256sum | cut -d ' ' -f 1)
+          python_deps="$cache_root/python/$python_key"
+          node_deps="$cache_root/node/$node_key"
+
+          mkdir -p "$python_deps" "$node_deps"
+          exec 9>"$cache_root/install.lock"
+          flock 9
+          # Publish each ready marker only after a successful install so interrupted jobs can retry.
+          if [[ -f "$python_deps/.ready" ]]; then
+            printf 'Using cached Python review dependencies\n'
+          else
+            printf 'Installing Python review dependencies\n'
+            python3 -m pip install --disable-pip-version-check --upgrade --target "$python_deps" -q -r review/requirements.txt
+            touch "$python_deps/.ready"
+          fi
+          if [[ -f "$node_deps/.ready" ]]; then
+            printf 'Using cached Pi review dependencies\n'
+          else
+            printf 'Installing Pi review dependencies\n'
+            cp review/package.json review/package-lock.json "$node_deps/"
+            npm ci --prefix "$node_deps" --ignore-scripts --no-fund --no-audit
+            touch "$node_deps/.ready"
+          fi
+
           printf 'PYTHONPATH=%s\n' "$python_deps" >> "$GITHUB_ENV"
-          npm ci --prefix "$GITHUB_WORKSPACE/review" --ignore-scripts --no-fund --no-audit
+          printf '%s\n' "$node_deps/node_modules/.bin" >> "$GITHUB_PATH"
       - name: Review commits and send the Feishu summary
         shell: bash
         env:
@@ -60,7 +86,6 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          export PATH="$GITHUB_WORKSPACE/review/node_modules/.bin:$PATH"
           args=(--timeout "$REVIEW_TIMEOUT")
           if [[ "$GITHUB_EVENT_NAME" == push ]]; then
             args+=(--event "$GITHUB_EVENT_PATH")

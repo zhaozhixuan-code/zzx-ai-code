@@ -2,6 +2,8 @@
 
 GitHub 收到 `master` push 后，将 **AI commit review** 派给带 `ai-commit-review` 标签的服务器 Runner。Runner 根据 push 的前后 SHA 拉取源码，运行 Python 和 Pi Agent，校验审查结果后从服务器直接向飞书发送一条纯文本摘要。完整报告在内存中用于汇总，源码、差异和 Pi 的工作文件使用任务临时目录，随任务退出清理。工作流不上传报告、归档或飞书回执。
 
+首次部署或更换服务器时，见 [AI 提交审查部署手册](../docs/ai-commit-review/03-提交审查部署手册.md)。
+
 ## 启用
 
 服务器 Runner `zzx-ai-review` 由 `ai-review-runner` 用户运行。服务器需要 Git、Bash、Python 3 和 pip，并能访问 GitHub、依赖源、Pi 配置的模型服务和飞书。工作流使用 Node `22.22.1` 和 Pi `1.5.2`。

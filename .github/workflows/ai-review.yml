@@ -3,21 +3,6 @@ name: AI commit review
 on:
   push:
     branches: [master]
-  workflow_dispatch:
-    inputs:
-      commit:
-        description: Full SHA for one commit (defaults to the selected branch tip)
-        type: string
-      base:
-        description: Full base SHA for a historical range
-        type: string
-      head:
-        description: Full head SHA for a historical range
-        type: string
-      send_feishu:
-        description: Send one Feishu summary after this manual review
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -25,75 +10,37 @@ permissions:
 jobs:
   review:
     if: >-
-      github.repository == 'zhaozhixuan-code/zzx-ai-code' && github.ref == 'refs/heads/master' &&
-      vars.AI_REVIEW_RUN_MODEL == 'true' &&
-      (github.event_name == 'workflow_dispatch' || vars.AI_REVIEW_MASTER_ENABLED == 'true')
+      github.repository == 'zhaozhixuan-code/zzx-ai-code' && !github.event.deleted &&
+      vars.AI_REVIEW_RUN_MODEL == 'true' && vars.AI_REVIEW_MASTER_ENABLED == 'true'
     runs-on: ai-commit-review
     timeout-minutes: 360
+    env:
+      SEND_FEISHU: ${{ github.run_attempt == 1 && vars.AI_REVIEW_SEND_FEISHU == 'true' }}
+      REVIEW_TIMEOUT: ${{ vars.AI_REVIEW_TIMEOUT_SECONDS || '480' }}
     steps:
-      - name: Check out the trusted review controller
+      - name: Check out the pushed commits
+        id: checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ github.workflow_sha }}
+          fetch-depth: 0
           persist-credentials: false
-      - name: Set up the Node runtime
+      - name: Set up Node.js
+        id: node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '22.22.1'
-      - name: Prepare cached review dependencies
+      - name: Install Pi
+        id: pi
+        working-directory: review
+        run: npm ci --ignore-scripts --no-fund --no-audit
         timeout-minutes: 15
-        shell: bash
-        run: |
-          set -euo pipefail
-          umask 077
-          cache_root="$HOME/.cache/ai-commit-review/dependencies"
-          # Store dependencies outside the checkout and key them by the lock files and runtime.
-          python_key=$({ python3 -c 'import sys, sysconfig; print(sys.implementation.name, sys.version.split()[0], sysconfig.get_platform())'; sha256sum review/requirements.txt; } | sha256sum | cut -d ' ' -f 1)
-          node_key=$({ node -p '[process.version, process.platform, process.arch].join(" ")'; sha256sum review/package.json review/package-lock.json; } | sha256sum | cut -d ' ' -f 1)
-          python_deps="$cache_root/python/$python_key"
-          node_deps="$cache_root/node/$node_key"
-
-          mkdir -p "$python_deps" "$node_deps"
-          exec 9>"$cache_root/install.lock"
-          flock 9
-          # Publish each ready marker only after a successful install so interrupted jobs can retry.
-          if [[ -f "$python_deps/.ready" ]]; then
-            printf 'Using cached Python review dependencies\n'
-          else
-            printf 'Installing Python review dependencies\n'
-            python3 -m pip install --disable-pip-version-check --upgrade --target "$python_deps" -q -r review/requirements.txt
-            touch "$python_deps/.ready"
-          fi
-          if [[ -f "$node_deps/.ready" ]]; then
-            printf 'Using cached Pi review dependencies\n'
-          else
-            printf 'Installing Pi review dependencies\n'
-            cp review/package.json review/package-lock.json "$node_deps/"
-            npm ci --prefix "$node_deps" --ignore-scripts --no-fund --no-audit
-            touch "$node_deps/.ready"
-          fi
-
-          printf 'PYTHONPATH=%s\n' "$python_deps" >> "$GITHUB_ENV"
-          printf '%s\n' "$node_deps/node_modules/.bin" >> "$GITHUB_PATH"
-      - name: Review commits and send the Feishu summary
-        shell: bash
+      - name: Review commits and send Feishu report
+        run: PATH="$PWD/review/node_modules/.bin:$PATH" python3 -B review/review_notify.py
+      - name: Report Runner setup failure
+        if: >-
+          failure() && env.SEND_FEISHU == 'true' && steps.checkout.outcome == 'success' &&
+          (steps.node.outcome == 'failure' || steps.pi.outcome == 'failure')
         env:
-          INPUT_COMMIT: ${{ inputs.commit }}
-          INPUT_BASE: ${{ inputs.base }}
-          INPUT_HEAD: ${{ inputs.head }}
-          SEND_FEISHU: ${{ github.run_attempt == 1 && ((github.event_name == 'push' && vars.AI_REVIEW_SEND_FEISHU == 'true') || inputs.send_feishu == true) }}
-          REVIEW_TIMEOUT: ${{ vars.AI_REVIEW_TIMEOUT_SECONDS || '480' }}
-        run: |
-          set -euo pipefail
-          umask 077
-          args=(--timeout "$REVIEW_TIMEOUT")
-          if [[ "$GITHUB_EVENT_NAME" == push ]]; then
-            args+=(--event "$GITHUB_EVENT_PATH")
-          elif [[ -n "$INPUT_BASE" || -n "$INPUT_HEAD" ]]; then
-            args+=(--base "$INPUT_BASE" --head "$INPUT_HEAD")
-            if [[ -n "$INPUT_COMMIT" ]]; then args+=(--commit "$INPUT_COMMIT"); fi
-          else
-            args+=(--commit "${INPUT_COMMIT:-$GITHUB_SHA}")
-          fi
-          if [[ "$SEND_FEISHU" == true ]]; then args+=(--send); fi
-          exec python3 -u review/review_notify.py "${args[@]}"
+          REVIEW_SETUP_ERROR: ${{ steps.node.outcome == 'failure' && '准备 Node.js' || '安装 Pi' }}
+        run: python3 -B review/review_notify.py

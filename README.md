@@ -137,7 +137,7 @@ zzx-ai-code/
 └── img*.png                        # 文档图片
 ```
 
-提交审查的配置、查看报告及补发操作见 [AI 提交审查使用说明](review/README.md)。
+自动提交审查的配置和飞书报告说明见 [AI 提交审查使用说明](review/README.md)。
 
 ---
 

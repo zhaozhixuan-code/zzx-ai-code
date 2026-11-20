@@ -12,14 +12,8 @@ import time
 from urllib.request import Request, urlopen
 
 
-SOURCE_PATHS = [f":(glob)**/*.{ext}" for ext in (
-    "java ts tsx js jsx mjs vue css scss html sql py go kt rs cs rb sh".split()
-)] + [":(glob)**/pom.xml", ":(glob)**/package.json", ":(exclude,glob)**/.*/**",
-     ":(exclude,glob)**/.*"] + [f":(exclude,glob)**/{directory}/**" for directory in (
-    "dist", "node_modules", "target", "review", "zzx-ai-code-microservice"
-)]
 CREDENTIAL = re.compile(
-    r"-----BEGIN [^\r\n]*PRIVATE KEY-----|\b(?:sk-|gh[pousr]_|github_pat_|AKIA)[\w-]{16,}"
+    r"-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY-----|\b(?:sk-|gh[pousr]_|github_pat_|AKIA)[\w-]{16,}"
     r"|\b(?:api[_-]?key|access[_-]?token|password|secret)\s*[=:]\s*['\"][^'\"\r\n]{6,}"
     r"|https://open\.feishu\.cn/open-apis/bot/v2/hook/[^\s\"']*", re.IGNORECASE,
 )
@@ -33,15 +27,20 @@ PROMPT = """用中文审查输入的 Git diff。只报告本提交新增的、�
 
 
 def run(*args, timeout=60, **kwargs):
-    result = subprocess.run(args, capture_output=True, encoding="utf-8", errors="replace",
-                            timeout=timeout, **kwargs)
+    command = "Pi" if args[0] == "pi" else f"Git {args[1]}"
+    try:
+        result = subprocess.run(args, capture_output=True, encoding="utf-8", errors="replace",
+                                timeout=timeout, **kwargs)
+    except subprocess.TimeoutExpired as error:
+        raise RuntimeError(f"{command} 执行超时（{int(error.timeout)} 秒）") from None
+    except OSError as error:
+        raise RuntimeError(f"{command} 无法启动，{error}") from None
     if result.returncode:
         detail = result.stderr.strip() or f"退出码 {result.returncode}"
         # 模型鉴权错误可能在响应中回显 Key。
         auth_error = re.search(r"\b(401|403)\b", detail) if args[0] == "pi" else None
         if auth_error:
             detail = f"模型接口鉴权失败，HTTP {auth_error[1]}"
-        command = "Pi" if args[0] == "pi" else f"Git {args[1]}"
         detail = CREDENTIAL.sub("[已隐藏凭据]", detail)[:400]
         raise RuntimeError(f"{command} 执行失败，{detail}")
     return result.stdout
@@ -56,12 +55,13 @@ def report(branch, author, commit, problem, suggestion, urgency):
 
 
 def review_commit(commit, directory, timeout):
-    diff = run("git", "show", "--format=", "--diff-merges=first-parent", "--no-ext-diff",
-               "--no-textconv", "--no-color", "--no-show-signature", commit, "--", *SOURCE_PATHS)
+    diff = run("git", "show", "--patch", "--format=", "--diff-merges=first-parent", "--no-ext-diff",
+               "--no-textconv", "--no-color", "--no-show-signature", commit, "--")
     if not diff.strip():
-        return "已跳过，未发现审查范围内的源码改动。", "无需处理。", "无"
-    if len(diff.encode("utf-8")) > 256 * 1024:
-        raise RuntimeError("diff 超过 256 KiB，未发送给模型")
+        return "Git diff 为空，本提交无文件变更。", "无需处理。", "无"
+    diff_size = len(diff.encode("utf-8"))
+    if diff_size > 256 * 1024:
+        raise RuntimeError(f"Git diff 为 {diff_size:,} 字节，超过 256 KiB 上限，未调用 Pi")
     if CREDENTIAL.search(diff):
         raise RuntimeError("diff 含疑似凭据，未发送给模型")
     output = run(*PI, PROMPT, input=diff, cwd=directory, timeout=timeout)
@@ -123,15 +123,12 @@ def main():
                 try:
                     commit_author = run("git", "show", "-s", "--format=%an", commit, "--").strip()
                     problem, suggestion, urgency = review_commit(commit, directory, min(remaining, timeout))
-                except (RuntimeError, OSError, subprocess.TimeoutExpired) as error:
-                    command = error.cmd[0] if isinstance(error, subprocess.TimeoutExpired) else ""
-                    detail = f"{command} 执行超时（{int(error.timeout)} 秒）" if command else str(error)
-                    problem = f"审查失败，{detail}"
+                except RuntimeError as error:
+                    problem = f"审查失败，{error}"
                     suggestion, urgency, failed = "查看 Actions 日志，修复错误后复核该提交。", "需处理", True
                 reports.append(report(branch, commit_author, commit[:8], problem, suggestion, urgency))
-    except (RuntimeError, OSError, ValueError, KeyError, subprocess.TimeoutExpired) as error:
-        detail = f"Git 执行超时（{int(error.timeout)} 秒）" if isinstance(error, subprocess.TimeoutExpired) else str(error)
-        reports.append(report(branch, author, "本次推送", detail, "查看 Actions 对应步骤日志。", "需处理"))
+    except (RuntimeError, OSError, ValueError, KeyError) as error:
+        reports.append(report(branch, author, "本次推送", str(error), "查看 Actions 对应步骤日志。", "需处理"))
         failed = True
 
     if reports and os.getenv("SEND_FEISHU") == "true":

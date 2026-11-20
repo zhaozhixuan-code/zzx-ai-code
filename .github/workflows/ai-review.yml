@@ -30,13 +30,30 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '22.22.1'
-      - name: Install Pi
+      - name: Prepare cached Pi dependencies
         id: pi
         working-directory: review
-        run: npm ci --ignore-scripts --no-fund --no-audit
         timeout-minutes: 15
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          runtime=$(node -p '[process.platform, process.arch, process.version].join("-")')
+          dependency_hash=$(sha256sum package.json package-lock.json | sha256sum | cut -d ' ' -f 1)
+          pi_cache="$HOME/.cache/ai-commit-review/pi/$runtime/$dependency_hash"
+          mkdir -p "$pi_cache"
+          exec 9>"$pi_cache/install.lock"
+          flock 9
+          if [[ -f "$pi_cache/.ready" ]]; then
+            echo 'Using cached Pi dependencies'
+          else
+            cp package.json package-lock.json "$pi_cache/"
+            npm ci --prefix "$pi_cache" --ignore-scripts --no-fund --no-audit
+            touch "$pi_cache/.ready"
+          fi
+          printf '%s\n' "$pi_cache/node_modules/.bin" >> "$GITHUB_PATH"
       - name: Review commits and send Feishu report
-        run: PATH="$PWD/review/node_modules/.bin:$PATH" python3 -B review/review_notify.py
+        run: python3 -B review/review_notify.py
       - name: Report Runner setup failure
         if: >-
           failure() && env.SEND_FEISHU == 'true' && steps.checkout.outcome == 'success' &&
